@@ -8,7 +8,7 @@ checksum = "cebb01fff14f0d4ddd7736883d267cf3eb8614cce2a6424fb78afbd7b1eb34e0"
 
 [[package]]
 name = "ordinary-data"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "counting-pointer",
 ]
