@@ -1,9 +1,3 @@
-#![feature(box_syntax)]
-#![feature(allocator_api)]
-
-use counting_pointer::Sc;
-use std::cell::{Cell, RefCell, Ref, BorrowError, BorrowMutError, RefMut};
-use std::alloc::{Global, GlobalAlloc};
 use std::collections::BTreeMap;
 
 #[derive(Copy,Clone)]
