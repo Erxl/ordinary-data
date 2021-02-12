@@ -6,12 +6,24 @@ pub struct ConceptRef<D=()> {
 }
 
 impl<D> ConceptRef<D> {
+    #[inline]
     pub unsafe fn data(&self) -> &D {
-        &(*self.ptr).data
+        &self.get().data
     }
+    #[inline]
     pub unsafe fn data_mut(&mut self) -> &mut D {
         &mut (*self.ptr).data
     }
+    #[inline]
+    unsafe fn get_mut(&mut self) -> &mut Concept<D> {
+        &mut *self.ptr
+    }
+    #[inline]
+    unsafe fn get(&self) -> &Concept<D> {
+        &*self.ptr
+    }
+    #[inline]
+    pub unsafe fn key(&self) -> u64 { self.get().key }
 }
 
 struct Concept<D> {
