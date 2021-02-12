@@ -92,10 +92,33 @@ fn test_iter() {
     let _ = c.create_concept_with_data(6666);
     let _ = c.create_concept_with_data(66666);
 
+    assert!(c.iter().any(|x| unsafe { *x.data() == 666 }));
+    assert!(c.iter().any(|x| unsafe { *x.data() == 6666 }));
+    assert!(c.iter().any(|x| unsafe { *x.data() == 66666 }));
     //let aaa = Vec::<i32>::new().iter().
     //let _ = c.iter();
 }
 
+#[test]
+fn test_info() {
+    unsafe {
+        let mut c = Container::<Option<Box<dyn std::any::Any>>, ()>::new();
+
+        //创建属性
+        let prop_people = c.create_concept();
+        let prop_age = c.create_concept();
+        let prop_interest = c.create_concept();
+        let prop_gender = c.create_concept();
+
+        //创建对象
+        let sys = c.create_concept();
+        let person1 = c.create_concept();
+        c.relate(prop_people, sys, person1);
+        let person2 = c.create_concept();
+        c.relate(prop_people, sys, person1);//todo 一对多链接
+        let person2 = c.create_concept();
+    }
+}
 
 #[test]
 fn test_other() {

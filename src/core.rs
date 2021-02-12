@@ -12,19 +12,6 @@ pub struct Container<C = (), R = ()> {
 
 }
 
-impl<R> Container<(), R> {
-    #[inline]
-    pub fn create_concept(&mut self) -> ConceptRef<(), R> {
-        self.create_concept_with_data(())
-    }
-}
-
-impl<C> Container<C, ()> {
-    #[inline]
-    pub unsafe fn relate(&mut self, kind: ConceptRef<C, ()>, from: ConceptRef<C, ()>, to: ConceptRef<C, ()>) -> RelationRef<C, ()> {
-        return self.relate_with_data(kind, from, to, ());
-    }
-}
 
 impl<C, R> Container<C, R> {
     pub fn new() -> Self {
@@ -35,7 +22,10 @@ impl<C, R> Container<C, R> {
             relations: Default::default(),
         }
     }
-
+    #[inline]
+    pub fn create_concept(&mut self) -> ConceptRef<C, R> where C: Default {
+        self.create_concept_with_data(Default::default())
+    }
     pub fn create_concept_with_data(&mut self, data: C) -> ConceptRef<C, R> {
         //获取key
         let key = self.concepts_newest_key.get();
@@ -50,7 +40,7 @@ impl<C, R> Container<C, R> {
         });
         let ptr = &*c as *const Concept<C, R> as *mut Concept<C, R>;
         self.concepts.insert(key, c);
-        return ConceptRef::new_from_ptr(ptr);
+        ConceptRef::new_from_ptr(ptr)
     }
 
     pub unsafe fn delete_concept(&mut self, mut concept: ConceptRef<C, R>) {
@@ -128,6 +118,11 @@ impl<C, R> Container<C, R> {
         //封装并返回
         relation_ref
     }
+    #[inline]
+    pub unsafe fn relate(&mut self, kind: ConceptRef<C, R>, from: ConceptRef<C, R>, to: ConceptRef<C, R>) ->
+    RelationRef<C, R> where R: Default {
+        self.relate_with_data(kind, from, to, Default::default())
+    }
 
     pub unsafe fn disrelate(&mut self, relation: RelationRef<C, R>) {
         let key = relation.key();
@@ -141,9 +136,19 @@ impl<C, R> Container<C, R> {
     pub fn relations_count(&self) -> usize { self.relations.len() }
     #[inline]
     pub fn concepts_count(&self) -> usize { self.concepts.len() }
+    #[inline]
+    pub fn iter<'a>(&'a self) -> Iter<'a, C, R> {
+        Iter(self.concepts.values().map(|x| ConceptRef::new_from_ref(&**x)))
+    }
+}
 
-    pub fn iter<'a>(&'a self) -> Map<Values<'_, u64, Box<Concept<C, R>>>, fn(&'a Box<Concept<C, R>>) -> ConceptRef<C, R>> {
-        self.concepts.values().map(|x| ConceptRef::new_from_ref(&**x))
+pub struct Iter<'a, C, R>(Map<Values<'a, u64, Box<Concept<C, R>>>, fn(&'a Box<Concept<C, R>>) -> ConceptRef<C, R>>);
+
+impl<'a, C, R> Iterator for Iter<'a, C, R> {
+    type Item = ConceptRef<C, R>;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
     }
 }
 
