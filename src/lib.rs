@@ -6,58 +6,56 @@ use std::cell::{Cell, RefCell, Ref, BorrowError, BorrowMutError, RefMut};
 use std::alloc::{Global, GlobalAlloc};
 use std::collections::BTreeMap;
 
-pub struct ConceptRef<K: Ord + Copy, D> {
-    data: Sc<RefCell<Option<Box<Concept<K, D>>>>>
+#[derive(Copy,Clone)]
+pub struct ConceptRef<D=()> {
+    ptr: *mut Concept<D>
 }
 
-impl<K: Ord + Copy, D> ConceptRef<K, D> {
-    fn inner(&self) -> Result<Ref<'_, Option<Box<Concept<K, D>, Global>>>, BorrowError> {
-        self.data.try_borrow()
+impl<D> ConceptRef<D> {
+    pub unsafe fn data(&self) -> &D {
+        &(*self.ptr).data
     }
-    fn inner_mut(&mut self) -> Result<RefMut<'_, Option<Box<Concept<K, D>, Global>>>, BorrowMutError> {
-        self.data.try_borrow_mut()
-    }
-
-    pub fn key(&self) -> K {
-        self.inner().as_ref().unwrap().as_ref().unwrap().key
-    }
-    pub fn relate(&mut self,to: &mut ConceptRef<K, D>,) {
-
+    pub unsafe fn data_mut(&mut self) -> &mut D {
+        &mut (*self.ptr).data
     }
 }
 
-struct Concept<K: Ord + Copy, D, > {
-    key: K,
-    to_this: BTreeMap<K, RelationIn<K, D>>,
-    from_this: BTreeMap<K, RelationOut<K, D>>,
+struct Concept<D> {
+    key: u64,
     data: D,
+
 }
 
-impl<K: Ord + Copy, D> Concept<K, D> {
-    fn new(key: K, data: D) -> ConceptRef<K, D> {
-        ConceptRef {
-            data: Sc::new(RefCell::new(Some(box Concept::<K, D> {
-                key: key,
-                to_this: Default::default(),
-                from_this: Default::default(),
-                data: data,
-            })), Default::default())
+pub struct Container<D=()> {
+    newest_key: Cell<u64>,
+    concepts: Vec<Box<Concept<D>>>,
+}
+impl Container {
+    pub fn create_concept(&mut self) -> ConceptRef {
+        self.create_concept_data(())
+    }
+}
+
+impl<D> Container<D> {
+    pub fn new() -> Self {
+        Self {
+            newest_key: Default::default(),
+            concepts: Default::default(),
         }
     }
-}
-struct Relation<K: Ord + Copy, D> {
-    from: ConceptRef<K, D>,
-    to: ConceptRef<K, D>,
-    kind:ConceptRef<K, D>,
-}
-struct RelationIn<K: Ord + Copy, D> {
-    from: ConceptRef<K, D>,
-    kind: ConceptRef<K, D>,
-}
 
-struct RelationOut<K: Ord + Copy, D> {
-    to: ConceptRef<K, D>,
-    kind: ConceptRef<K, D>,
+    pub fn create_concept_data(&mut self, data: D) -> ConceptRef<D> {
+        let c = Box::new(Concept {
+            key: self.newest_key.get(),
+            data: data,
+        });
+        let ptr = &*c as *const Concept<D> as *mut Concept<D>;
+        self.concepts.push(c);
+        *self.newest_key.get_mut() += 1;
+        ConceptRef::<D> {
+            ptr
+        }
+    }
 }
 
 #[cfg(test)]
@@ -67,6 +65,10 @@ mod tests {
 
     #[test]
     fn test_main() {
-        let c = Concept::new(0, ());
+        let mut c = Container::new();
+        let c1 = c.create_concept();
+        unsafe{
+        let a=c1.data();
+        }
     }
 }
