@@ -166,9 +166,13 @@ fn test_info() {
             interest_minecraft].iter());
 
         assert!(person_ji_zi_shan.relations_out().values().find(|x| x.kind() == prop_sex).unwrap().to().get(&sex_male.key()).unwrap().relations_in().values().find(|x| x.from() == person_ji_zi_shan).unwrap().from().relations_out().get(&r.key()).unwrap().to().values().map(|x| x.data().as_ref().unwrap().downcast_ref::<String>().unwrap()).any(|x| *x == "玩Minecraft"));
+
     }
 }
-
+macro trace_macros {
+        (true) => {{ /* compiler built-in */ }};
+        (false) => {{ /* compiler built-in */ }};
+    }
 #[test]
 fn test_other() {
     fn aaa(aaa: C) {}
