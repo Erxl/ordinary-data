@@ -1,322 +1,325 @@
-use std::cell::Cell;
+use std::cell::{Cell, UnsafeCell};
 use std::collections::btree_map::Values;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::iter::Map;
 use std::ptr::NonNull;
-#[macro_use]
-use std::cmp;
-#[macro_use]//todo 使用宏
-use std::marker::*;
+use std::marker::PhantomData;
+use std::cmp::Ordering;
 
-pub struct Container<C = (), R = ()> {
-    concepts_newest_key: Cell<u64>,
-    relations_newest_key: Cell<u64>,
-    concepts: BTreeMap<u64, Box<Concept<C, R>>>,
-    relations: BTreeMap<u64, Box<Relation<C, R>>>,
+//——————————————————————————————————————————————————————结构—————————————————————————————————————————
+macro_rules! args {($ty:ident) => {$ty<ConceptData, RelationData, RelationTypeData>}}
 
+#[derive(Default)]
+struct KeyPool(u64);
+
+impl KeyPool {
+    #[inline]
+    pub fn rent(&mut self) -> u64 {
+        let key = self.0;
+        self.0 += 1;
+        key
+    }
+    #[inline]
+    pub fn ret(&mut self, key: u64) {}
 }
 
+pub struct Container<ConceptData = (), RelationData = (), RelationTypeData = ()> {
+    concepts_key_pool: KeyPool,
+    relations_key_pool: KeyPool,
+    relation_types_key_pool: KeyPool,
+    concepts: BTreeMap<u64, args!(Concept)>,
+    //todo 使用ordclct树，避免多次引用造成的性能损失
+    relations: BTreeMap<u64, args!(Relation)>,
+    relation_types: BTreeMap<u64, args!(RelationType)>,
+}
 
-impl<C, R> Container<C, R> {
+pub struct Concept<ConceptData, RelationData, RelationTypeData> {
+    key: u64,
+    data: ConceptData,
+    relation_type_to_relation: BTreeMap<u64, args!(RelationPtr)>,
+    src_to_relation: BTreeMap<u64, args!(RelationPtr)>,
+    phantom: PhantomData<RelationTypeData>,
+}
+
+pub struct RelationType<ConceptData, RelationData, RelationTypeData> {
+    key: u64,
+    data: RelationTypeData,
+    dst_to_relations: BTreeMap<u64, BTreeMap<u64, args!(RelationPtr)>>,
+}
+
+pub struct Relation<ConceptData, RelationData, RelationTypeData> {
+    key: u64,
+    data: RelationData,
+    relation_type: args!(RelationTypePtr),
+    src: args!(ConceptPtr),
+    key_to_dst: BTreeMap<u64, args!(ConceptPtr)>,
+}
+
+macro_rules! declare {
+    ($ty_ptr:ident,$ty:ident,$ty_data:ident) => {
+        pub struct $ty_ptr<ConceptData, RelationData, RelationTypeData>
+        (NonNull<$ty<ConceptData, RelationData, RelationTypeData>>);
+        impl<ConceptData, RelationData, RelationTypeData> Clone for args!($ty_ptr) {
+            #[inline] fn clone(&self) -> Self {Self(self.0)}
+        }
+        impl<ConceptData, RelationData, RelationTypeData> PartialEq for args!($ty_ptr){
+            #[inline] fn eq(&self, other: &Self) -> bool {self.0.eq(&other.0)}
+        }
+        impl <ConceptData, RelationData, RelationTypeData> Eq for args!($ty_ptr){}
+        impl <ConceptData, RelationData, RelationTypeData> PartialOrd for args!($ty_ptr){
+            #[inline] fn partial_cmp(&self, other: &Self) -> Option<Ordering> { self.0.partial_cmp(&other.0)}
+        }
+        impl <ConceptData, RelationData, RelationTypeData> Ord for args!($ty_ptr){
+            #[inline]fn cmp(&self, other: &Self) -> Ordering {self.0.cmp(&other.0)}
+        }
+        impl<ConceptData, RelationData, RelationTypeData> Copy for args!($ty_ptr) {}
+        impl<ConceptData, RelationData, RelationTypeData> $ty_ptr<ConceptData, RelationData, RelationTypeData> {
+            #[inline] pub unsafe fn data(&self) -> &$ty_data { &self.0.as_ref().data }
+            #[inline] pub unsafe fn data_mut(&self) -> &mut $ty_data { &mut (*self.as_ptr()).data }
+            #[inline] pub unsafe fn key(&self) -> u64 { self.0.as_ref().key }
+            #[inline] unsafe fn get_mut(&self) -> &mut args!($ty) {&mut *self.as_ptr() }
+            #[inline] unsafe fn get(&self) -> &args!($ty) {self.0.as_ref() }
+            #[inline] fn as_ptr(&self) -> *mut args!($ty) { self.0.as_ptr() }
+            #[inline] fn new_from_ptr(ptr: *const args!($ty))-> args!($ty_ptr) {
+                unsafe { Self(NonNull::new_unchecked(ptr as _)) }}
+            #[inline] fn new_from_ref(x: &args!($ty))-> args!($ty_ptr) {
+                unsafe { Self(NonNull::new_unchecked(x as *const $ty<_, _, _> as _)) }
+            }
+        }
+    }
+}
+
+declare!(ConceptPtr,Concept,ConceptData);
+declare!(RelationPtr,Relation,RelationData);
+declare!(RelationTypePtr,RelationType,RelationTypeData);
+
+//——————————————————————————————————————————————————————实现—————————————————————————————————————————
+impl<ConceptData, RelationData, RelationTypeData> args!(RelationPtr) {
+    //todo 合理性分析
+    // #[inline]
+    // pub fn relation_type(&self) -> RelationPtr<ConceptData, RelationData, RelationTypeData> {
+    //     unsafe { self.get() }.relation_type.clone()
+    // }
+    // #[inline]
+    // pub fn relation_src(&self) -> ConceptPtr<ConceptData, RelationData, RelationTypeData> {
+    //     unsafe { self.get() }.relation_src
+    // }
+    // #[inline]
+    // pub fn key_to_relation_dst(&self) -> &BTreeMap<u64, ConceptPtr<ConceptData, RelationData, RelationTypeData>> {
+    //     &unsafe { self.get() }.key_to_relation_dst
+    // }
+}
+// impl<ConceptData, RelationData, RelationTypeData> args!(Concept) {
+//     fn relations(&self)->BTreeSet<args!(RelationPtr)>{
+//         //去重
+//         let mut relations:BTreeSet<args!(RelationPtr)> = self.relation_type_to_relation.values().map(|x|*x).collect();
+//         self.concept_src_to_relation.values().for_each(|x|{relations.insert(*x);});
+//         relations
+//     }
+// }
+
+impl<ConceptData, RelationData, RelationTypeData> args!(Container) {
     pub fn new() -> Self {
         Self {
-            concepts_newest_key: Default::default(),
-            relations_newest_key: Default::default(),
+            concepts_key_pool: Default::default(),
+            relations_key_pool: Default::default(),
+            relation_types_key_pool: Default::default(),
             concepts: Default::default(),
             relations: Default::default(),
+            relation_types: Default::default(),
         }
     }
     #[inline]
-    pub fn create_concept(&mut self) -> ConceptRef<C, R> where C: Default {
+    pub fn create_concept(&mut self) -> args!(ConceptPtr) where ConceptData: Default {
         self.create_concept_with_data(Default::default())
     }
-    pub fn create_concept_with_data(&mut self, data: C) -> ConceptRef<C, R> {
-        //获取key
-        let key = self.concepts_newest_key.get();
-        *self.concepts_newest_key.get_mut() += 1;
+    pub fn create_concept_with_data(&mut self, data: ConceptData) -> args!(ConceptPtr) {
+        let key = self.concepts_key_pool.rent();
 
-        let c = Box::new(Concept {
+        ConceptPtr::new_from_ref(self.concepts.entry(key).or_insert(Concept {
             key,
             data,
-            relations_in: Default::default(),
-            relations_out: Default::default(),
-            relations_kind: Default::default(),
-        });
-        let ptr = &*c as *const Concept<C, R> as *mut Concept<C, R>;
-        self.concepts.insert(key, c);
-        ConceptRef::new_from_ptr(ptr)
+            relation_type_to_relation: Default::default(),
+            src_to_relation: Default::default(),
+            phantom: Default::default(),
+        }))
     }
 
-    pub unsafe fn delete_concept(&mut self, mut concept: ConceptRef<C, R>) {
-        let c = concept.0.as_mut();
+    pub unsafe fn delete_concept(&mut self, concept: args!(ConceptPtr)) {
+        let c = concept.get_mut();
         let key = c.key;
-        c.relations_out.values().for_each(|x| {
-            let relation = x.get();
-            let key = relation.key;
 
-            relation.kind.get_mut().relations_kind.remove(&key);
-            relation.to.values().map(|x| x.get_mut().relations_in.remove(&key));
+        //todo 可优化;
+        c.relation_type_to_relation.values().collect::<Vec<_>>().into_iter().for_each(|x| self.delete_relation(*x));
+        c.src_to_relation.values().collect::<Vec<_>>().into_iter().for_each(|x| self.delete_relation(*x));
 
-            self.relations.remove(&key);
-        });
-        c.relations_in.values().for_each(|x| {
-            let relation = x.get();
-            let key = relation.key;
-
-            relation.kind.get_mut().relations_kind.remove(&key);
-            relation.from.get_mut().relations_out.remove(&key);
-
-            self.relations.remove(&key);
-        });
-        c.relations_kind.values().for_each(|x| {
-            let relation = x.get();
-            let key = relation.key;
-
-            relation.to.values().map(|x| x.get_mut().relations_in.remove(&key));
-            relation.from.get_mut().relations_out.remove(&key);
-            self.relations.remove(&key);
-        });
         self.concepts.remove(&key).unwrap();
+        self.concepts_key_pool.ret(key);
     }
-    pub fn contains_concept(&mut self, concept: ConceptRef<C, R>) -> bool {
-        self.concepts.values().any(|x| concept.as_ptr() == &**x as *const Concept<_, _> as _)
-    }
-    pub fn contains_concept_key(&mut self, key: u64) -> bool {
-        self.concepts.contains_key(&key)
-    }
-    pub fn get_concept(&mut self, key: u64) -> Option<ConceptRef<C, R>> {
-        self.concepts.get(&key).map(|x| ConceptRef::new_from_ref(x))
-    }
-    pub fn contains_relation(&mut self, relation: RelationRef<C, R>) -> bool {
-        self.relations.values().any(|x| relation.as_ptr() == &**x as *const Relation<_, _> as _)
-    }
-    pub fn contains_relation_key(&mut self, key: u64) -> bool {
-        self.relations.contains_key(&key)
-    }
-    pub fn get_relation(&mut self, key: u64) -> Option<RelationRef<C, R>> {
-        self.relations.get(&key).map(|x| RelationRef::new_from_ref(x))
-    }
-    pub unsafe fn create_relation_with_data<'a, To: Clone + Iterator<Item=&'a ConceptRef<C, R>>>(
+    // pub fn contains_concept(&mut self, concept: args!(ConceptPtr)) -> bool {
+    //     self.concepts.values().any(|x| concept.as_ptr() == &**x as *const Concept<_, _,_> as _)
+    // }
+    // pub fn contains_concept_key(&mut self, key: u64) -> bool {
+    //     self.concepts.contains_key(&key)
+    // }
+    // pub fn get_concept(&mut self, key: u64) -> Option<args!(ConceptPtr)> {
+    //     self.concepts.get(&key).map(|x| ConceptPtr::new_from_ref(x))
+    // }
+    // pub fn contains_relation(&mut self, relation: RelationRef<ConceptData, RelationData, RelationTypeData>) -> bool {
+    //     self.relations.values().any(|x| relation.as_ptr() == &**x as *const Relation<_, _,_)> as _)
+    // }
+    // pub fn contains_relation_key(&mut self, key: u64) -> bool {
+    //     self.relations.contains_key(&key)
+    // }
+    // pub fn get_relation(&mut self, key: u64) -> Option<RelationRef<ConceptData, RelationData, RelationTypeData>> {
+    //     self.relations.get(&key).map(|x| RelationRef::new_from_ref(x))
+    // }
+    pub unsafe fn create_relation_with_data<'a, DstConceptsIter: Clone + Iterator<Item=&'a args!(ConceptPtr)>>(
         &'a mut self,
-        kind: ConceptRef<C, R>,
-        from: ConceptRef<C, R>,
-        to: To, data: R) -> RelationRef<C, R> {
-        //获取key
-        let key = self.relations_newest_key.get();
-        *self.relations_newest_key.get_mut() += 1;
+        relation_type: args!(RelationTypePtr),
+        src: args!(ConceptPtr),
+        dst_iter: DstConceptsIter,
+        data: RelationData) -> args!(RelationPtr) {
+        //申请key
+        let key = self.relations_key_pool.rent();
 
         //创建关系
-        let relation = Box::new(Relation {
+        let relation_ref = RelationPtr::new_from_ref(self.relations.entry(key).or_insert(Relation {
             key,
-            data: data,
-            kind: kind,
-            from: from,
-            to: to.clone().map(|x| (x.key(), *x)).collect::<_>(),
-        });
-        let relation_ref = RelationRef::new_from_ref(&*relation);
+            data,
+            relation_type: RelationTypePtr::new_from_ref(relation_type.get()),
+            src: ConceptPtr::new_from_ref(src.get()),
+            key_to_dst: dst_iter.clone().map(|x| (x.key(), *x)).collect::<_>(),
+        }));
 
         //注册关系
-        kind.get_mut().relations_kind.insert(key, relation_ref);
-        from.get_mut().relations_out.insert(key, relation_ref);
-        to.for_each(|x| { x.get_mut().relations_in.insert(key, relation_ref); });
-        self.relations.insert(key, relation);
+        src.get_mut().relation_type_to_relation.insert(relation_type.key(), relation_ref);
+        let relation_type_dst_to_relation_ref = &mut relation_type.get_mut().dst_to_relations;
+        dst_iter.for_each(|dst| {
+            relation_type_dst_to_relation_ref.entry(dst.key()).or_insert_with(BTreeMap::new).insert(key, relation_ref);
+            dst.get_mut().src_to_relation.insert(src.key(), relation_ref);
+        });
+
         //封装并返回
         relation_ref
     }
     #[inline]
-    pub unsafe fn create_relation<'a, To: Clone + Iterator<Item=&'a ConceptRef<C, R>>>(
+    pub unsafe fn create_relation<'a, DstConceptsIter: Clone + Iterator<Item=&'a args!(ConceptPtr)>>(
         &'a mut self,
-        kind: ConceptRef<C, R>,
-        from: ConceptRef<C, R>,
-        to: To) ->
-        RelationRef<C, R> where R: Default {
-        self.create_relation_with_data(kind, from, to, Default::default())
+        relation_type: args!(RelationTypePtr),
+        src: args!(ConceptPtr),
+        dst_iter: DstConceptsIter) -> args!(RelationPtr) where RelationData: Default {
+        self.create_relation_with_data(relation_type, src, dst_iter, Default::default())
     }
 
-    pub unsafe fn delete_relation(&mut self, relation: RelationRef<C, R>) {
-        let key = relation.key();
+    pub unsafe fn delete_relation(&mut self, relation: args!(RelationPtr)) {
         let relation = relation.get();
-        relation.kind.get_mut().relations_kind.remove(&key);
-        relation.to.values().for_each(|x| { x.get_mut().relations_in.remove(&key); });
-        relation.from.get_mut().relations_out.remove(&key);
-        self.relations.remove(&key);
+        let relation_key = relation.key;
+        relation.key_to_dst.iter().for_each(|(dst_key, dst)| {
+            let dst_to_relations = &mut relation.relation_type.get_mut().dst_to_relations;
+            let dst_to_relations_relations = &mut dst_to_relations.get_mut(&dst_key).unwrap();
+            dst_to_relations_relations.remove(&relation_key);
+            if dst_to_relations_relations.is_empty() { dst_to_relations.remove(&dst_key); }
+
+            dst.get_mut().src_to_relation.remove(&relation.src.key());
+        });
+        relation.src.get_mut().relation_type_to_relation.remove(&relation.relation_type.key());
+        self.relations.remove(&relation_key);
+        self.relations_key_pool.ret(relation_key);
     }
     #[inline]
     pub fn relations_count(&self) -> usize { self.relations.len() }
     #[inline]
     pub fn concepts_count(&self) -> usize { self.concepts.len() }
     #[inline]
-    pub fn concepts_iter<'a>(&'a self) -> ConceptsRefIter<'a, C, R> {
-        ConceptsRefIter(self.concepts.values().map(|x| ConceptRef::new_from_ref(&**x)))
-    }
+    pub fn relation_types_count(&self) -> usize { self.relation_types.len() }
+    // #[inline]
+    // pub fn concepts_iter<'a>(&'a self) -> ConceptsRefIter<'a, ConceptData, RelationData, RelationTypeData> {
+    //     ConceptsRefIter(self.concepts.values().map(|x| ConceptPtr::new_from_ref(&**x)))
+    // }
+    // #[inline]
+    // pub fn relations_iter<'a>(&'a self) -> RelationsRefIter<'a, ConceptData, RelationData, RelationTypeData> {
+    //     RelationsRefIter(self.relations.values().map(|x| RelationRef::new_from_ref(&**x)))
+    // }
     #[inline]
-    pub fn relations_iter<'a>(&'a self) -> RelationsRefIter<'a, C, R> {
-        RelationsRefIter(self.relations.values().map(|x| RelationRef::new_from_ref(&**x)))
+    pub fn create_relation_type(&mut self) -> args!(RelationTypePtr) where RelationTypeData: Default {
+        self.create_relation_type_with_data(Default::default())
+    }
+    pub fn create_relation_type_with_data(&mut self, data: RelationTypeData) -> args!(RelationTypePtr) {
+        //申请key
+        let key = self.relation_types_key_pool.rent();
+
+        //创建
+        RelationTypePtr::new_from_ref(self.relation_types.entry(key).or_insert(RelationType {
+            key,
+            data,
+            dst_to_relations: Default::default(),
+        }))
+    }
+
+    pub unsafe fn delete_relation_type(&mut self, relation_type: args!(RelationTypePtr)) {
+        let relation_type = relation_type.get_mut();
+        let relation_type_key = relation_type.key;
+        //todo
+        self.relation_types_key_pool.ret(relation_type_key);
     }
 }
 
-pub struct ConceptsRefIter<'a, C, R>(
-    Map<Values<'a, u64, Box<Concept<C, R>>>, fn(&'a Box<Concept<C, R>>) -> ConceptRef<C, R>>);
+// pub struct ConceptsRefIter<'a, ConceptData, RelationData, RelationTypeData>(
+//     Map<Values<'a, u64, Box<args!(Concept)>>, fn(&'a Box<args!(Concept)>) -> args!(ConceptPtr)>);
+//
+// impl<'a, ConceptData, RelationData, RelationTypeData> Clone for ConceptsRefIter<'a, ConceptData, RelationData, RelationTypeData> {
+//     #[inline]
+//     fn clone(&self) -> Self {
+//         Self(self.0.clone())
+//     }
+// }
+//
+// pub struct RelationsRefIter<'a, ConceptData, RelationData, RelationTypeData>(
+//     Map<Values<'a, u64, Box<Relation<ConceptData, RelationData, RelationTypeData>>>, fn(&'a Box<Relation<ConceptData, RelationData, RelationTypeData>>) -> RelationRef<ConceptData, RelationData, RelationTypeData>>);
+//
+// impl<'a, ConceptData, RelationData, RelationTypeData> Clone for RelationsRefIter<'a, ConceptData, RelationData, RelationTypeData> {
+//     #[inline]
+//     fn clone(&self) -> Self {
+//         Self(self.0.clone())
+//     }
+// }
+//
+// impl<'a, ConceptData, RelationData, RelationTypeData> Iterator for ConceptsRefIter<'a, ConceptData, RelationData, RelationTypeData> {
+//     type Item = args!(ConceptPtr);
+//     #[inline]
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.0.next()
+//     }
+// }
+//
+// impl<'a, ConceptData, RelationData, RelationTypeData> Iterator for RelationsRefIter<'a, ConceptData, RelationData, RelationTypeData> {
+//     type Item = RelationRef<ConceptData, RelationData, RelationTypeData>;
+//     #[inline]
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.0.next()
+//     }
+// }
+// //todo 实现原始迭代器的所有功能
+//
+//
+//
 
-impl<'a, C, R> Clone for ConceptsRefIter<'a, C, R> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
 
-pub struct RelationsRefIter<'a, C, R>(
-    Map<Values<'a, u64, Box<Relation<C, R>>>, fn(&'a Box<Relation<C, R>>) -> RelationRef<C, R>>);
+// impl<ConceptData, RelationData, RelationTypeData> Clone for args!(ConceptPtr) {
+//     #[inline]
+//     fn clone(&self) -> Self {
+//         Self(self.0)
+//     }
+// }
 
-impl<'a, C, R> Clone for RelationsRefIter<'a, C, R> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
+// impl<ConceptData, RelationData, RelationTypeData> Copy for args!(ConceptPtr) {}
+// impl<ConceptData, RelationData, RelationTypeData> PartialEq for args!(ConceptPtr) {
+//     #[inline]
+//     fn eq(&self, other: &Self) -> bool {
+//         self.0==other.0
+//     }
+// }
 
-impl<'a, C, R> Iterator for ConceptsRefIter<'a, C, R> {
-    type Item = ConceptRef<C, R>;
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
 
-impl<'a, C, R> Iterator for RelationsRefIter<'a, C, R> {
-    type Item = RelationRef<C, R>;
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-//todo 实现原始迭代器的所有功能
 
-pub struct Relation<C, R> {
-    key: u64,
-    data: R,
-    kind: ConceptRef<C, R>,
-    from: ConceptRef<C, R>,
-    to: BTreeMap<u64, ConceptRef<C, R>>,
-}
-
-#[derive(Eq, PartialEq)]
-pub struct RelationRef<C, R> (NonNull<Relation<C, R>>);
-
-impl<C, R> Clone for RelationRef<C, R> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self(self.0)
-    }
-}
-
-impl<C, R> Copy for RelationRef<C, R> {}
-
-impl<C, R> RelationRef<C, R> {
-    #[inline]
-    pub unsafe fn data(&self) -> &R {
-        &self.0.as_ref().data
-    }
-    #[inline]
-    pub unsafe fn data_mut(&self) -> &mut R {
-        &mut (*self.as_ptr()).data
-    }
-    #[inline]
-    pub unsafe fn key(&self) -> u64 { self.0.as_ref().key }
-    #[inline]
-    unsafe fn get_mut(&self) -> &mut Relation<C, R> {
-        &mut *self.as_ptr()
-    }
-    #[inline]
-    unsafe fn get(&self) -> &Relation<C, R> {
-        self.0.as_ref()
-    }
-    #[inline]
-    fn as_ptr(&self) -> *mut Relation<C, R> {
-        self.0.as_ptr()
-    }
-    #[inline]
-    fn new_from_ptr(ptr: *const Relation<C, R>) -> RelationRef<C, R> {
-        unsafe { Self(NonNull::new_unchecked(ptr as _)) }
-    }
-    #[inline]
-    fn new_from_ref(relation: &Relation<C, R>) -> RelationRef<C, R> {
-        unsafe { Self(NonNull::new_unchecked(relation as *const Relation<_, _> as _)) }
-    }
-
-    #[inline]
-    pub fn kind(&self) -> ConceptRef<C, R> { unsafe { self.get() }.kind }
-    #[inline]
-    pub fn from(&self) -> ConceptRef<C, R> { unsafe { self.get() }.from }
-    #[inline]
-    pub fn to(&self) -> &BTreeMap<u64, ConceptRef<C, R>> { &unsafe { self.get() }.to }
-}
-
-pub struct ConceptRef<C, R> (NonNull<Concept<C, R>>);
-
-impl<C, R> Clone for ConceptRef<C, R> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self(self.0)
-    }
-}
-
-impl<C, R> Copy for ConceptRef<C, R> {}
-impl<C, R> PartialEq for ConceptRef<C, R> {
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.0==other.0
-    }
-}
-impl<C, R> ConceptRef<C, R> {
-    #[inline]
-    pub unsafe fn data(&self) -> &C {
-        &self.0.as_ref().data
-    }
-    #[inline]
-    pub unsafe fn data_mut(&self) -> &mut C {
-        &mut (*self.as_ptr()).data
-    }
-    #[inline]
-    pub unsafe fn key(&self) -> u64 { self.0.as_ref().key }
-    #[inline]
-    unsafe fn get_mut(&self) -> &mut Concept<C, R> {
-        &mut *self.as_ptr()
-    }
-    #[inline]
-    unsafe fn get(&self) -> &Concept<C, R> {
-        self.0.as_ref()
-    }
-    #[inline]
-    fn as_ptr(&self) -> *mut Concept<C, R> {
-        self.0.as_ptr()
-    }
-    #[inline]
-    fn new_from_ptr(ptr: *const Concept<C, R>) -> ConceptRef<C, R> {
-        unsafe { Self(NonNull::new_unchecked(ptr as _)) }
-    }
-    #[inline]
-    fn new_from_ref(ptr: &Concept<C, R>) -> ConceptRef<C, R> {
-        unsafe { Self(NonNull::new_unchecked(ptr as *const Concept<_, _> as _)) }
-    }
-    #[inline]
-    pub unsafe fn relations_in(&self) -> &BTreeMap<u64, RelationRef<C, R>> {
-        &self.get().relations_in
-    }
-    #[inline]
-    pub unsafe fn relations_out(&self) -> &BTreeMap<u64, RelationRef<C, R>> {
-        &self.get().relations_out
-    }
-    #[inline]
-    pub unsafe fn relations_kind(&self) -> &BTreeMap<u64, RelationRef<C, R>> {
-        &self.get().relations_kind
-    }
-}
-
-pub struct Concept<C, R> {
-    key: u64,
-    data: C,
-    relations_in: BTreeMap<u64, RelationRef<C, R>>,
-    relations_out: BTreeMap<u64, RelationRef<C, R>>,
-    relations_kind: BTreeMap<u64, RelationRef<C, R>>,
-}
