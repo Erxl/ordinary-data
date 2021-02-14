@@ -62,60 +62,60 @@ fn test_relations() {
     }
 }
 
-// #[test]
-// fn test_contains() {
-//     unsafe {
-//         let mut c = StdContainer::<i32, i32>::new();
-//         let c1 = c.create_concept_with_data(111);
-//         let c2 = c.create_concept_with_data(222);
-//         let c2_key = c2.key();
-//         c.delete_concept(c2);
+#[test]
+fn test_contains() {
+    unsafe {
+        let mut c = Container::<i32, i32,i32>::new();
+        let c1 = c.create_concept_with_data(111);
+        let c2 = c.create_concept_with_data(222);
+        let c2_key = c2.key();
+        c.delete_concept(c2);
+
+        assert!(c.contains_concept(c1));
+        assert!(c.contains_concept_key(c1.key()));
+        assert!(!c.contains_concept(c2));
+        assert!(!c.contains_concept_key(c2_key));
+
+        let from = c.create_concept_with_data(6);
+        let to = c.create_concept_with_data(66);
+        let to2 = c.create_concept_with_data(66);
+        let kind = c.create_relation_type_with_data(666);
+
+        let r = c.create_relation_with_data(kind, from, [to].iter(), 6666);
+        let r2 = c.create_relation_with_data(kind, from, [to2].iter(), 6666);
+        let r2_key = r2.key();
+        c.delete_relation(r2);
+
+        assert!(c.contains_relation(r));
+        assert!(c.contains_relation_key(r.key()));
+        assert!(!c.contains_relation(r2));
+        assert!(!c.contains_relation_key(r2_key));
+    }
+}
 //
-//         assert!(c.contains_concept(c1));
-//         assert!(c.contains_concept_key(c1.key()));
-//         assert!(!c.contains_concept(c2));
-//         assert!(!c.contains_concept_key(c2_key));
-//
-//         let from = c.create_concept_with_data(6);
-//         let to = c.create_concept_with_data(66);
-//         let to2 = c.create_concept_with_data(66);
-//         let kind = c.create_concept_with_data(666);
-//
-//         let r = c.create_relation_with_data(kind, from, [to].iter(), 6666);
-//         let r2 = c.create_relation_with_data(kind, from, [to2].iter(), 6666);
-//         let r2_key = r2.key();
-//         c.delete_relation(r2);
-//
-//         assert!(c.contains_relation(r));
-//         assert!(c.contains_relation_key(r.key()));
-//         assert!(!c.contains_relation(r2));
-//         assert!(!c.contains_relation_key(r2_key));
-//     }
-// }
-//
-// #[test]
-// fn test_size() {
-//     assert_eq!(std::mem::size_of::<Option<RelationRef<i32, i32>>>(), std::mem::size_of::<*const i32>());
-//     assert_eq!(std::mem::size_of::<Option<ConceptRef<i32, i32>>>(), std::mem::size_of::<*const i32>());
-// }
-//
-// #[test]
-// fn test_iter() {
-//     unsafe {
-//         let mut c = StdContainer::<i32, f32>::new();
-//         let from = c.create_concept_with_data(666);//Six means good luck in China, while five means crying in China
-//         let to = c.create_concept_with_data(6666);
-//         let kind = c.create_concept_with_data(66666);
-//
-//         assert!(c.concepts_iter().any(|x| unsafe { *x.data() == 666 }));
-//         assert!(c.concepts_iter().any(|x| unsafe { *x.data() == 6666 }));
-//         assert!(c.concepts_iter().any(|x| unsafe { *x.data() == 66666 }));
-//
-//         let relation = c.create_relation_with_data(kind, from, [to].iter(), 233.);
-//         assert!(c.relations_iter().any(|x| unsafe { *x.data() == 233. }));
-//     }
-// }
-//
+#[test]
+fn test_size() {
+    const ptr_size: usize =std::mem::size_of::<*const i32>();
+    assert_eq!(std::mem::size_of::<Option<RelationPtr<i32, i32, i32>>>(), ptr_size);
+    assert_eq!(std::mem::size_of::<Option<ConceptPtr<i32, i32, i32>>>(), ptr_size);
+    assert_eq!(std::mem::size_of::<Option<RelationTypePtr<i32, i32, i32>>>(), ptr_size);
+}
+
+#[test]
+fn test_iter() {
+    unsafe {
+        let mut c = Container::<i32, f32,i32>::new();
+        let from = c.create_concept_with_data(666);//Six means good luck in China, while five means crying in China
+        let to = c.create_concept_with_data(6666);
+        let kind = c.create_relation_type_with_data(66666);
+        let relation = c.create_relation_with_data(kind, from, [to].iter(), 233.);
+        assert!(c.concepts_iter().any(|x| unsafe { *x.data() == 666 }));
+        assert!(c.concepts_iter().any(|x| unsafe { *x.data() == 6666 }));
+        assert!(c.relations_iter().any(|x| unsafe { *x.data() == 233. }));
+        assert!(c.relation_types_iter().any(|x| unsafe { *x.data() == 66666 }));
+    }
+}
+
 // #[test]
 // fn test_info() {
 //     unsafe {
