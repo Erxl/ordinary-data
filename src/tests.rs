@@ -8,6 +8,9 @@
   See the Mulan PSL v2 for more details.
 */
 use super::*;
+use std::any::Any;
+use std::ops::Deref;
+use std::collections::{BTreeSet, BTreeMap};
 
 #[test]
 fn test_ref_data_create_delet() {
@@ -116,6 +119,49 @@ fn test_iter() {
         assert!(c.relation_types_iter().any(|x| *x.data() == 66666 && x == kind));
     }
 
+    #[test]
+    fn test_accessing() {
+        unsafe {
+            let mut c = Container::<Option<Box<dyn Any>>, Option<Box<dyn Any>>, Option<Box<dyn Any>>>::new();
+            let fr = c.create_concept_with_data(Some(Box::new(555)));
+            let ty = c.create_relation_type_with_data(Some(Box::new(666)));
+            let ty2 = c.create_relation_type_with_data(Some(Box::new(666)));
+            let to = c.create_concept_with_data(Some(Box::new(777)));
+            let rl = c.create_relation_with_data(ty, fr, [to].iter(), Some(Box::new(888)));
+            let rl2 = c.create_relation_with_data(ty2, fr, [to].iter(), Some(Box::new(888)));
+            let rl_inv = c.create_relation_with_data(ty, to, [fr].iter(), Some(Box::new(999)));
+            let rl2_inv = c.create_relation_with_data(ty2, to, [fr].iter(), Some(Box::new(999)));
+
+            //正连接测试
+            assert!(*fr.outgoing(ty).unwrap() == rl);
+            assert!(*fr.outgoing(ty2).unwrap() == rl2);
+            assert_eq!(fr.outgoings().count(), 2);
+            assert_eq!(fr.outgoings().filter(|x| **x == rl).count(), 1);
+            assert_eq!(fr.outgoings().filter(|x| **x == rl2).count(), 1);
+            assert_eq!(to.incoming(ty).unwrap().len(), 1);
+            assert!(*to.incoming(ty).unwrap().values().next().unwrap() == rl);
+            assert_eq!(to.incoming(ty2).unwrap().len(), 1);
+            assert!(*to.incoming(ty2).unwrap().values().next().unwrap() == rl2);
+            assert_eq!(to.incomings().count(), 2);
+            assert_eq!(to.incomings().filter(|x| **x == rl).count(), 1);
+            assert_eq!(to.incomings().filter(|x| **x == rl2).count(), 1);
+
+            //反连接测试
+            assert!(*to.outgoing(ty).unwrap() == rl_inv);
+            assert!(*to.outgoing(ty2).unwrap() == rl2_inv);
+            assert_eq!(to.outgoings().count(), 2);
+            assert_eq!(to.outgoings().filter(|x| **x == rl_inv).count(), 1);
+            assert_eq!(to.outgoings().filter(|x| **x == rl2_inv).count(), 1);
+            assert_eq!(fr.incoming(ty).unwrap().len(), 1);
+            assert!(*fr.incoming(ty).unwrap().values().next().unwrap() == rl_inv);
+            assert_eq!(fr.incoming(ty2).unwrap().len(), 1);
+            assert!(*fr.incoming(ty2).unwrap().values().next().unwrap() == rl2_inv);
+            assert_eq!(fr.incomings().count(), 2);
+            assert_eq!(fr.incomings().filter(|x| **x == rl_inv).count(), 1);
+            assert_eq!(fr.incomings().filter(|x| **x == rl2_inv).count(), 1);
+        }
+    }
+
 // #[test]
 // fn test_info() {
 //     unsafe {
@@ -212,6 +258,5 @@ fn test_iter() {
 // }
 
     #[test]
-    fn test_test() {
-    }
+    fn test_test() {}
 }
