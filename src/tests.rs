@@ -93,22 +93,13 @@ fn test_contains() {
     }
 }
 
-//
+
 #[test]
 fn test_size() {
-    const ptr_size: usize = std::mem::size_of::<*const i32>();
-    assert_eq!(
-        std::mem::size_of::<Option<RelationPtr<i32, i32, i32>>>(),
-        ptr_size
-    );
-    assert_eq!(
-        std::mem::size_of::<Option<ConceptPtr<i32, i32, i32>>>(),
-        ptr_size
-    );
-    assert_eq!(
-        std::mem::size_of::<Option<RelationTypePtr<i32, i32, i32>>>(),
-        ptr_size
-    );
+    const PTR_SIZE: usize = std::mem::size_of::<*const i32>();
+    assert_eq!(std::mem::size_of::<Option<RelationPtr<i32, i32, i32>>>(), PTR_SIZE);
+    assert_eq!(std::mem::size_of::<Option<ConceptPtr<i32, i32, i32>>>(), PTR_SIZE);
+    assert_eq!(std::mem::size_of::<Option<RelationTypePtr<i32, i32, i32>>>(), PTR_SIZE);
 }
 
 #[test]
@@ -119,12 +110,11 @@ fn test_iter() {
         let to = c.create_concept_with_data(6666);
         let kind = c.create_relation_type_with_data(66666);
         let relation = c.create_relation_with_data(kind, from, [to].iter(), 233.);
-        assert!(c.concepts_iter().any(|x| unsafe { *x.data() == 666 && x == from }));
-        assert!(c.concepts_iter().any(|x| unsafe { *x.data() == 6666 && x == to }));
-        assert!(c.relations_iter().any(|x| unsafe { *x.data() == 233. && x == relation }));
-        assert!(c.relation_types_iter().any(|x| unsafe { *x.data() == 66666 && x == kind }));
+        assert!(c.concepts_iter().any(|x| *x.data() == 666 && x == from));
+        assert!(c.concepts_iter().any(|x| *x.data() == 6666 && x == to));
+        assert!(c.relations_iter().any(|x| *x.data() == 233. && x == relation));
+        assert!(c.relation_types_iter().any(|x| *x.data() == 66666 && x == kind));
     }
-}
 
 // #[test]
 // fn test_info() {
@@ -221,5 +211,8 @@ fn test_iter() {
 //     //println!("{}", b.a.a)
 // }
 
-#[test]
-fn test_test() {}
+    #[test]
+    fn test_test() {
+
+    }
+}
