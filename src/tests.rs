@@ -145,6 +145,7 @@ fn test_iter() {
             assert_eq!(to.incomings().count(), 2);
             assert_eq!(to.incomings().filter(|x| **x == rl).count(), 1);
             assert_eq!(to.incomings().filter(|x| **x == rl2).count(), 1);
+            assert!(fr.relation(to).unwrap()==rl);
 
             //反连接测试
             assert!(*to.outgoing(ty).unwrap() == rl_inv);
@@ -159,6 +160,8 @@ fn test_iter() {
             assert_eq!(fr.incomings().count(), 2);
             assert_eq!(fr.incomings().filter(|x| **x == rl_inv).count(), 1);
             assert_eq!(fr.incomings().filter(|x| **x == rl2_inv).count(), 1);
+            assert!(to.relation(fr).unwrap()==rl);
+
         }
     }
 
