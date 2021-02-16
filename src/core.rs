@@ -63,20 +63,20 @@ macro_rules! declare {
     ($ty_ptr:ident,$ty:ident,$ty_data:ident) => {
         pub struct $ty_ptr<ConceptData, RelationData, RelationTypeData>
         (NonNull<$ty<ConceptData, RelationData, RelationTypeData>>);
-        impl<ConceptData, RelationData, RelationTypeData> Clone for args!($ty_ptr) {
+        impl<ConceptData, RelationData, RelationTypeData> Clone for $ty_ptr<ConceptData, RelationData, RelationTypeData> {
             #[inline] fn clone(&self) -> Self {Self(self.0)}
         }
-        impl<ConceptData, RelationData, RelationTypeData> PartialEq for args!($ty_ptr){
+        impl<ConceptData, RelationData, RelationTypeData> PartialEq for $ty_ptr<ConceptData, RelationData, RelationTypeData>{
             #[inline] fn eq(&self, other: &Self) -> bool {self.0.eq(&other.0)}
         }
-        impl <ConceptData, RelationData, RelationTypeData> Eq for args!($ty_ptr){}
-        impl <ConceptData, RelationData, RelationTypeData> PartialOrd for args!($ty_ptr){
+        impl <ConceptData, RelationData, RelationTypeData> Eq for $ty_ptr<ConceptData, RelationData, RelationTypeData>{}
+        impl <ConceptData, RelationData, RelationTypeData> PartialOrd for $ty_ptr<ConceptData, RelationData, RelationTypeData>{
             #[inline] fn partial_cmp(&self, other: &Self) -> Option<Ordering> { self.0.partial_cmp(&other.0)}
         }
-        impl <ConceptData, RelationData, RelationTypeData> Ord for args!($ty_ptr){
+        impl <ConceptData, RelationData, RelationTypeData> Ord for $ty_ptr<ConceptData, RelationData, RelationTypeData>{
             #[inline]fn cmp(&self, other: &Self) -> Ordering {self.0.cmp(&other.0)}
         }
-        impl<ConceptData, RelationData, RelationTypeData> Copy for args!($ty_ptr) {}
+        impl<ConceptData, RelationData, RelationTypeData> Copy for $ty_ptr<ConceptData, RelationData, RelationTypeData> {}
         impl<ConceptData, RelationData, RelationTypeData> $ty_ptr<ConceptData, RelationData, RelationTypeData> {
             #[inline] pub unsafe fn data(&self) -> &$ty_data { &self.0.as_ref().data }
             #[inline] pub unsafe fn data_mut(&self) -> &mut $ty_data { &mut (*self.as_ptr()).data }
@@ -84,9 +84,9 @@ macro_rules! declare {
             #[inline] #[allow(dead_code)] unsafe fn get_mut(&self) -> &mut args!($ty) {&mut *self.as_ptr() }
             #[inline] #[allow(dead_code)] unsafe fn get(&self) -> &args!($ty) {self.0.as_ref() }
             #[inline] #[allow(dead_code)] fn as_ptr(&self) -> *mut args!($ty) { self.0.as_ptr() }
-            #[inline] #[allow(dead_code)] fn new_from_ptr(ptr: *const args!($ty))-> args!($ty_ptr) {
+            #[inline] #[allow(dead_code)] fn new_from_ptr(ptr: *const args!($ty))-> $ty_ptr<ConceptData, RelationData, RelationTypeData> {
                 unsafe { Self(NonNull::new_unchecked(ptr as _)) }}
-            #[inline] #[allow(dead_code)] fn new_from_ref(x: &args!($ty))-> args!($ty_ptr) {
+            #[inline] #[allow(dead_code)] fn new_from_ref(x: &args!($ty))-> $ty_ptr<ConceptData, RelationData, RelationTypeData> {
                 unsafe { Self(NonNull::new_unchecked(x as *const $ty<_, _, _> as _)) }
             }
         }
