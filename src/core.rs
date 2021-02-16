@@ -41,7 +41,7 @@ pub struct Container<ConceptData = (), RelationData = (), RelationTypeData = ()>
 pub struct Concept<ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: ConceptData,
-    relation_type_to_relation: BTreeMap<u64, args!(RelationPtr)>,
+    relation_type_to_dst_relation: BTreeMap<u64, args!(RelationPtr)>,
     src_to_relation: BTreeMap<u64, args!(RelationPtr)>,
 }
 
@@ -112,7 +112,7 @@ impl<ConceptData, RelationData, RelationTypeData> Container<ConceptData, Relatio
         ConceptPtr::new_from_ref(self.concepts.entry(key).or_insert(Concept {
             key,
             data,
-            relation_type_to_relation: Default::default(),
+            relation_type_to_dst_relation: Default::default(),
             src_to_relation: Default::default(),
         }))
     }
@@ -122,7 +122,7 @@ impl<ConceptData, RelationData, RelationTypeData> Container<ConceptData, Relatio
         let key = c.key;
 
         //todo 可优化;
-        c.relation_type_to_relation.values()
+        c.relation_type_to_dst_relation.values()
             .collect::<Vec<_>>().into_iter().for_each(|x| self.delete_relation(*x));
         c.src_to_relation.values()
             .collect::<Vec<_>>().into_iter().for_each(|x| self.delete_relation(*x));
@@ -151,7 +151,7 @@ impl<ConceptData, RelationData, RelationTypeData> Container<ConceptData, Relatio
             }));
 
         //注册关系
-        src.get_mut().relation_type_to_relation.insert(relation_type.key(), relation_ref);
+        src.get_mut().relation_type_to_dst_relation.insert(relation_type.key(), relation_ref);
         let relation_type_dst_to_relation_ref = &mut relation_type.get_mut().dst_to_relations;
         dst_iter.for_each(|dst| {
             relation_type_dst_to_relation_ref.entry(dst.key())
@@ -182,7 +182,7 @@ impl<ConceptData, RelationData, RelationTypeData> Container<ConceptData, Relatio
 
             dst.get_mut().src_to_relation.remove(&relation.src.key());
         });
-        relation.src.get_mut().relation_type_to_relation.remove(&relation.relation_type.key());
+        relation.src.get_mut().relation_type_to_dst_relation.remove(&relation.relation_type.key());
         self.relations.remove(&relation_key);
         self.relations_key_pool.ret(relation_key);
     }
@@ -283,6 +283,25 @@ impl<ConceptData, RelationData, RelationTypeData> Default for Container<ConceptD
             relations: Default::default(),
             relation_types: Default::default(),
         }
+    }
+}
+
+impl<ConceptData, RelationData, RelationTypeData> ConceptPtr<ConceptData, RelationData, RelationTypeData> {
+    #[inline]
+    pub unsafe fn outgoing(&self, relation_type: args!(RelationTypePtr)) -> Option<&args!(RelationPtr)> {
+        self.get().relation_type_to_dst_relation.get(&relation_type.key())
+    }
+    #[inline]
+    pub unsafe fn outgoings(&self) -> impl Iterator<Item=&args!(RelationPtr)> + '_ {
+        self.get().relation_type_to_dst_relation.values()
+    }
+    #[inline]
+    pub unsafe fn incoming(&self, relation_type: args!(RelationTypePtr)) -> Option<&BTreeMap<u64, args!(RelationPtr)>> {
+        relation_type.get().dst_to_relations.get(&self.key()).map(|x| &*(x as *const _))
+    }
+    #[inline]
+    pub unsafe fn incomings(&self) -> impl Iterator<Item=&args!(RelationPtr)> + '_ {
+        self.get().src_to_relation.values()
     }
 }
 //todo 实现原始迭代器的所有功能
