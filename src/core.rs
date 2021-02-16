@@ -99,16 +99,8 @@ declare!(RelationTypePtr,RelationType,RelationTypeData);
 
 //——————————————————————————————————————————————————————实现—————————————————————————————————————————
 impl<ConceptData, RelationData, RelationTypeData> Container<ConceptData, RelationData, RelationTypeData> {
-    pub fn new() -> Self {
-        Self {
-            concepts_key_pool: Default::default(),
-            relations_key_pool: Default::default(),
-            relation_types_key_pool: Default::default(),
-            concepts: Default::default(),
-            relations: Default::default(),
-            relation_types: Default::default(),
-        }
-    }
+    #[inline]
+    pub fn new() -> Self { Self::default() }
     //——————————————————————————————————————————————————————增删—————————————————————————————————————
     #[inline]
     pub fn create_concept(&mut self) -> args!(ConceptPtr) where ConceptData: Default {
@@ -151,12 +143,12 @@ impl<ConceptData, RelationData, RelationTypeData> Container<ConceptData, Relatio
         //创建关系
         let relation_ref = RelationPtr::new_from_ref(self.relations.entry(key).or_insert(
             Relation {
-            key,
-            data,
-            relation_type: RelationTypePtr::new_from_ref(relation_type.get()),
-            src: ConceptPtr::new_from_ref(src.get()),
-            key_to_dst: dst_iter.clone().map(|x| (x.key(), *x)).collect::<_>(),
-        }));
+                key,
+                data,
+                relation_type: RelationTypePtr::new_from_ref(relation_type.get()),
+                src: ConceptPtr::new_from_ref(src.get()),
+                key_to_dst: dst_iter.clone().map(|x| (x.key(), *x)).collect::<_>(),
+            }));
 
         //注册关系
         src.get_mut().relation_type_to_relation.insert(relation_type.key(), relation_ref);
@@ -281,4 +273,16 @@ impl<ConceptData, RelationData, RelationTypeData> Container<ConceptData, Relatio
     }
 }
 
+impl<ConceptData, RelationData, RelationTypeData> Default for Container<ConceptData, RelationData, RelationTypeData> {
+    fn default() -> Self {
+        Self {
+            concepts_key_pool: Default::default(),
+            relations_key_pool: Default::default(),
+            relation_types_key_pool: Default::default(),
+            concepts: Default::default(),
+            relations: Default::default(),
+            relation_types: Default::default(),
+        }
+    }
+}
 //todo 实现原始迭代器的所有功能
