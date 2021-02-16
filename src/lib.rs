@@ -1,3 +1,4 @@
+#![feature(option_result_unwrap_unchecked)]
 /*
   Copyright (c) 2021 Erxl
   ordinary-data is licensed under Mulan PSL v2.

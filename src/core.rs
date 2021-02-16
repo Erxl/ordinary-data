@@ -10,6 +10,7 @@
 use std::collections::*;
 use std::ptr::NonNull;
 use std::cmp::Ordering;
+use std::collections::btree_map::Entry;
 
 //——————————————————————————————————————————————————————结构—————————————————————————————————————————
 macro_rules! args {($ty:ident) => {$ty<ConceptData, RelationData, RelationTypeData>}}
@@ -136,38 +137,49 @@ impl<ConceptData, RelationData, RelationTypeData> Container<ConceptData, Relatio
         relation_type: args!(RelationTypePtr),
         src: args!(ConceptPtr),
         dst_iter: DstConceptsIter,
-        data: RelationData) -> args!(RelationPtr) {
+        data: RelationData) -> Result<args!(RelationPtr), args!(RelationPtr)> {
+
         //申请key
         let key = self.relations_key_pool.rent();
 
-        //创建关系
-        let relation_ref = RelationPtr::new_from_ref(self.relations.entry(key).or_insert(
-            Relation {
-                key,
-                data,
-                relation_type: RelationTypePtr::new_from_ref(relation_type.get()),
-                src: ConceptPtr::new_from_ref(src.get()),
-                key_to_dst: dst_iter.clone().map(|x| (x.key(), *x)).collect::<_>(),
-            }));
+        match src.get_mut().relation_type_to_dst_relation.entry(key) {
+            Entry::Vacant(_)=>{
+                //创建关系
+                let relation_ref = RelationPtr::new_from_ref(self.relations.entry(key).or_insert(
+                    Relation {
+                        key,
+                        data,
+                        relation_type: RelationTypePtr::new_from_ref(relation_type.get()),
+                        src: ConceptPtr::new_from_ref(src.get()),
+                        key_to_dst: dst_iter.clone().map(|x| (x.key(), *x)).collect::<_>(),
+                    }));
 
-        //注册关系
-        src.get_mut().relation_type_to_dst_relation.insert(relation_type.key(), relation_ref);
-        let relation_type_dst_to_relation_ref = &mut relation_type.get_mut().dst_to_relations;
-        dst_iter.for_each(|dst| {
-            relation_type_dst_to_relation_ref.entry(dst.key())
-                .or_insert_with(BTreeMap::new).insert(key, relation_ref);
-            dst.get_mut().src_to_relation.insert(src.key(), relation_ref);
-        });
+                //注册关系
+                src.get_mut().relation_type_to_dst_relation.insert(relation_type.key(), relation_ref);
+                let relation_type_dst_to_relation_ref = &mut relation_type.get_mut().dst_to_relations;
+                dst_iter.for_each(|dst| {
+                    relation_type_dst_to_relation_ref.entry(dst.key())
+                        .or_insert_with(BTreeMap::new).insert(key, relation_ref);
+                    dst.get_mut().src_to_relation.insert(src.key(), relation_ref);
+                });
 
-        //封装并返回
-        relation_ref
+                //封装并返回
+                return Ok(relation_ref);
+            }
+            Entry::Occupied(x)=>{
+                //关系已存在，取消创建，归还key
+                self.relations_key_pool.ret(key);
+                return Err(*x.get());
+            }
+        }
     }
     #[inline]
     pub unsafe fn create_relation<'a, DstConceptsIter: Clone + Iterator<Item=&'a args!(ConceptPtr)>>(
         &'a mut self,
         relation_type: args!(RelationTypePtr),
         src: args!(ConceptPtr),
-        dst_iter: DstConceptsIter) -> args!(RelationPtr) where RelationData: Default {
+        dst_iter: DstConceptsIter) -> Result<args!(RelationPtr), args!(RelationPtr)>
+        where RelationData: Default {
         self.create_relation_with_data(relation_type, src, dst_iter, Default::default())
     }
 

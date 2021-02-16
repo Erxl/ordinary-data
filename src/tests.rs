@@ -48,7 +48,7 @@ fn test_relations() {
         assert_eq!(c.concepts_count(), 2);
         assert_eq!(c.relations_count(), 0);
         assert_eq!(c.relation_types_count(), 1);
-        let relation = c.create_relation(prop, from, [to].iter());
+        let relation = c.create_relation(prop, from, [to].iter()).unwrap_unchecked();
         assert_eq!(c.concepts_count(), 2);
         assert_eq!(c.relations_count(), 1);
         assert_eq!(c.relation_types_count(), 1);
@@ -84,8 +84,8 @@ fn test_contains() {
         let to2 = c.create_concept_with_data(66);
         let kind = c.create_relation_type_with_data(666);
 
-        let r = c.create_relation_with_data(kind, from, [to].iter(), 6666);
-        let r2 = c.create_relation_with_data(kind, from, [to2].iter(), 6666);
+        let r = c.create_relation_with_data(kind, from, [to].iter(), 6666).unwrap_unchecked();
+        let r2 = c.create_relation_with_data(kind, from, [to2].iter(), 6666).unwrap_unchecked();
         let r2_key = r2.key();
         c.delete_relation(r2);
 
@@ -112,7 +112,7 @@ fn test_iter() {
         let from = c.create_concept_with_data(666); //Six means good luck in China, while five means crying in China
         let to = c.create_concept_with_data(6666);
         let kind = c.create_relation_type_with_data(66666);
-        let relation = c.create_relation_with_data(kind, from, [to].iter(), 233.);
+        let relation = c.create_relation_with_data(kind, from, [to].iter(), 233.).unwrap_unchecked();
         assert!(c.concepts_iter().any(|x| *x.data() == 666 && x == from));
         assert!(c.concepts_iter().any(|x| *x.data() == 6666 && x == to));
         assert!(c.relations_iter().any(|x| *x.data() == 233. && x == relation));
@@ -127,14 +127,15 @@ fn test_iter() {
             let ty = c.create_relation_type_with_data(Some(Box::new(666)));
             let ty2 = c.create_relation_type_with_data(Some(Box::new(666)));
             let to = c.create_concept_with_data(Some(Box::new(777)));
-            let rl = c.create_relation_with_data(ty, fr, [to].iter(), Some(Box::new(888)));
-            let rl2 = c.create_relation_with_data(ty2, fr, [to].iter(), Some(Box::new(888)));
-            let rl_inv = c.create_relation_with_data(ty, to, [fr].iter(), Some(Box::new(999)));
-            let rl2_inv = c.create_relation_with_data(ty2, to, [fr].iter(), Some(Box::new(999)));
+            let rl = c.create_relation_with_data(ty, fr, [to].iter(), Some(Box::new(888))).unwrap_unchecked();
+            let rl2 = c.create_relation_with_data(ty2, fr, [to].iter(), Some(Box::new(888))).unwrap_unchecked();
+            let rl_inv = c.create_relation_with_data(ty, to, [fr].iter(), Some(Box::new(999))).unwrap_unchecked();
+            let rl2_inv = c.create_relation_with_data(ty2, to, [fr].iter(), Some(Box::new(999))).unwrap_unchecked();
+            //let to2 = c.create_concept_with_data(Some(Box::new(777)));
 
             //正连接测试
-            assert!(*fr.outgoing(ty).unwrap() == rl);
-            assert!(*fr.outgoing(ty2).unwrap() == rl2);
+            assert!(fr.outgoing(ty).unwrap() == rl);
+            assert!(fr.outgoing(ty2).unwrap() == rl2);
             assert_eq!(fr.outgoings().count(), 2);
             assert_eq!(fr.outgoings().filter(|x| **x == rl).count(), 1);
             assert_eq!(fr.outgoings().filter(|x| **x == rl2).count(), 1);
@@ -148,8 +149,8 @@ fn test_iter() {
             assert!(fr.relation(to).unwrap()==rl);
 
             //反连接测试
-            assert!(*to.outgoing(ty).unwrap() == rl_inv);
-            assert!(*to.outgoing(ty2).unwrap() == rl2_inv);
+            assert!(to.outgoing(ty).unwrap() == rl_inv);
+            assert!(to.outgoing(ty2).unwrap() == rl2_inv);
             assert_eq!(to.outgoings().count(), 2);
             assert_eq!(to.outgoings().filter(|x| **x == rl_inv).count(), 1);
             assert_eq!(to.outgoings().filter(|x| **x == rl2_inv).count(), 1);
@@ -261,5 +262,8 @@ fn test_iter() {
 // }
 
     #[test]
-    fn test_test() {}
+    fn test_test() {
+
+
+    }
 }
