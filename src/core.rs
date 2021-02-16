@@ -286,22 +286,38 @@ impl<ConceptData, RelationData, RelationTypeData> Default for Container<ConceptD
     }
 }
 
+//todo 实现原始迭代器的所有功能
 impl<ConceptData, RelationData, RelationTypeData> ConceptPtr<ConceptData, RelationData, RelationTypeData> {
     #[inline]
-    pub unsafe fn outgoing(&self, relation_type: args!(RelationTypePtr)) -> Option<&args!(RelationPtr)> {
-        self.get().relation_type_to_dst_relation.get(&relation_type.key())
+    pub unsafe fn outgoing(&self, relation_type: args!(RelationTypePtr)) -> Option<args!(RelationPtr)> {
+        self.get().relation_type_to_dst_relation.get(&relation_type.key()).cloned()
     }
     #[inline]
     pub unsafe fn outgoings(&self) -> impl Iterator<Item=&args!(RelationPtr)> + '_ {
-        self.get().relation_type_to_dst_relation.values()
+        self.get().relation_type_to_dst_relation.values()//todo 可能有重复
     }
     #[inline]
     pub unsafe fn incoming(&self, relation_type: args!(RelationTypePtr)) -> Option<&BTreeMap<u64, args!(RelationPtr)>> {
-        relation_type.get().dst_to_relations.get(&self.key()).map(|x| &*(x as *const _))
+        relation_type.get().dst_to_relations.get(&self.key()).map(#[inline]|x| &*(x as *const _))
     }
     #[inline]
     pub unsafe fn incomings(&self) -> impl Iterator<Item=&args!(RelationPtr)> + '_ {
         self.get().src_to_relation.values()
     }
+
+    #[inline]
+    pub unsafe fn relation(&self, dst: args!(ConceptPtr)) -> Option<args!(RelationPtr)> {
+        RelationTypePtr::relation(*self, dst)
+    }
 }
-//todo 实现原始迭代器的所有功能
+
+impl<ConceptData, RelationData, RelationTypeData> RelationTypePtr<ConceptData, RelationData, RelationTypeData> {
+    #[inline]
+    pub unsafe fn relations(&self) -> impl Iterator<Item=&args!(RelationPtr)> + '_ {
+        self.get().dst_to_relations.values().flat_map(#[inline]|x| x.values())
+    }
+    #[inline]
+    pub unsafe fn relation(src: args!(ConceptPtr), dst: args!(ConceptPtr)) -> Option<args!(RelationPtr)> {
+        dst.get().src_to_relation.get(&src.key()).cloned()
+    }
+}
