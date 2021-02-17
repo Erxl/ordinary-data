@@ -44,17 +44,15 @@ fn test_relations() {
         assert_eq!(c.relation_types_count(), 0);
         let from = c.create_concept();
         let to = c.create_concept();
-        let prop = c.create_relation_type();
+        let mut prop = c.create_relation_type();
         assert_eq!(c.concepts_count(), 2);
         assert_eq!(c.relations_count(), 0);
         assert_eq!(c.relation_types_count(), 1);
-        let relation = c
-            .create_relation(prop, from, [to].iter())
-            .unwrap_unchecked();
+        let relation = prop.create_relation(from, [to].iter()).unwrap();
         assert_eq!(c.concepts_count(), 2);
         assert_eq!(c.relations_count(), 1);
         assert_eq!(c.relation_types_count(), 1);
-        c.delete_relation(relation);
+        relation.delete();
         assert_eq!(c.concepts_count(), 2);
         assert_eq!(c.relations_count(), 0);
         assert_eq!(c.relation_types_count(), 1);
@@ -84,21 +82,21 @@ fn test_contains() {
         let from = c.create_concept_with_data(6);
         let to = c.create_concept_with_data(66);
         let to2 = c.create_concept_with_data(66);
-        let kind = c.create_relation_type_with_data(666);
+        let mut kind = c.create_relation_type_with_data(666);
 
-        let r = c
-            .create_relation_with_data(kind, from, [to].iter(), 6666)
-            .unwrap_unchecked();
-        let r2 = c
-            .create_relation_with_data(kind, from, [to2].iter(), 6666)
-            .unwrap_unchecked();
-        let r2_key = r2.key();
-        c.delete_relation(r2);
-
-        assert!(c.contains_relation(r));
-        assert!(c.contains_relation_key(r.key()));
-        assert!(!c.contains_relation(r2));
-        assert!(!c.contains_relation_key(r2_key));
+        let r = kind
+            .create_relation_with_data(from, [to].iter(), 6666)
+            .unwrap();
+        //c
+        //  .create_relation_with_data(kind, from, [to2].iter(), 6666)
+        //  .unwrap_unchecked();
+        //let r2_key = r2.key();
+        //c.delete_relation(r2);
+        //
+        assert!(kind.contains_relation(r));
+        assert!(kind.contains_relation_key(r.key()));
+        //// assert!(!kind.contains_relation(r2));
+        //assert!(!kind.contains_relation_key(r2_key));
     }
 }
 
@@ -125,10 +123,10 @@ fn test_iter() {
         let mut c = Container::<i32, f32, i32>::new();
         let from = c.create_concept_with_data(666); //Six means good luck in China, while five means crying in China
         let to = c.create_concept_with_data(6666);
-        let kind = c.create_relation_type_with_data(66666);
-        let relation = c
-            .create_relation_with_data(kind, from, [to].iter(), 233.)
-            .unwrap_unchecked();
+        let mut kind = c.create_relation_type_with_data(66666);
+        let relation = kind
+            .create_relation_with_data(from, [to].iter(), 233.)
+            .unwrap();
         assert!(c.concepts_iter().any(|x| *x.data() == 666 && x == from));
         assert!(c.concepts_iter().any(|x| *x.data() == 6666 && x == to));
         assert!(c
@@ -146,31 +144,36 @@ fn test_accessing() {
         let mut c =
             Container::<Option<Box<dyn Any>>, Option<Box<dyn Any>>, Option<Box<dyn Any>>>::new();
         let fr = c.create_concept_with_data(Some(Box::new(555)));
-        let ty = c.create_relation_type_with_data(Some(Box::new(666)));
-        let ty2 = c.create_relation_type_with_data(Some(Box::new(666)));
+        let mut ty = c.create_relation_type_with_data(Some(Box::new(666)));
+        let mut ty2 = c.create_relation_type_with_data(Some(Box::new(666)));
         let to = c.create_concept_with_data(Some(Box::new(777)));
-        let rl = c
-            .create_relation_with_data(ty, fr, [to].iter(), Some(Box::new(888)))
-            .unwrap_unchecked();
-        assert!(
-            c.create_relation(ty, fr, [to].iter())
-                .unwrap_err_unchecked()
-                == rl
-        );
-        let rl2 = c.create_relation_with_data(ty2, fr, [to].iter(), Some(Box::new(888))).unwrap_unchecked();
-        assert!(c.create_relation(ty2, fr, [to].iter()).unwrap_err_unchecked() == rl2);
-        let rl_inv = c.create_relation_with_data(ty, to, [fr].iter(), Some(Box::new(999))).unwrap_unchecked();
-        assert!(c.create_relation(ty, to, [fr].iter()).unwrap_err_unchecked() == rl_inv);
-        let rl2_inv = c.create_relation_with_data(ty2, to, [fr].iter(), Some(Box::new(999))).unwrap_unchecked();
-        assert!(c.create_relation(ty2, to, [fr].iter()).unwrap_err_unchecked() == rl2_inv);
+        let rl = ty
+            .create_relation_with_data(fr, [to].iter(), Some(Box::new(888)))
+            .unwrap();
+        assert!(ty.create_relation(fr, [to].iter()).unwrap_err() == rl);
+        let rl2 = ty2
+            .create_relation_with_data(fr, [to].iter(), Some(Box::new(888)))
+            .unwrap();
+        assert!(ty2.create_relation(fr, [to].iter()).unwrap_err() == rl2);
+        let rl_inv = ty
+            .create_relation_with_data(to, [fr].iter(), Some(Box::new(999)))
+            .unwrap();
+        assert!(ty.create_relation(to, [fr].iter()).unwrap_err() == rl_inv);
+        let rl2_inv = ty2
+            .create_relation_with_data(to, [fr].iter(), Some(Box::new(999)))
+            .unwrap();
+        assert!(ty2.create_relation(to, [fr].iter()).unwrap_err() == rl2_inv);
         let to2 = c.create_concept_with_data(Some(Box::new(777)));
         let fr2 = c.create_concept_with_data(Some(Box::new(777)));
 
         //这属于在fr的ty连接上再增加一个连接，一个源概念只能有一个同种类型的连接，这里不能用create方法
-        let err=c.create_relation_with_data(ty, fr, [to2].iter(), Some(Box::new(1))).unwrap_err_unchecked();
-        assert!(err.0==rl);
-        assert!(err.1.as_ref().unwrap().downcast_ref::<i32>().unwrap()==&1);
-        //let rl3 = 
+        let err = ty
+            .create_relation_with_data(fr, [to2].iter(), Some(Box::new(1)))
+            .unwrap_err();
+        assert!(err.0 == rl);
+        assert!(err.1.as_ref().unwrap().downcast_ref::<i32>().unwrap() == &1);
+
+        //let rl3 =
         //let rl4 = c.create_relation_with_data(ty, fr2, [to].iter(), Some(Box::new(2))).unwrap_unchecked();
 
         // //正连接测试
@@ -300,5 +303,7 @@ fn test_accessing() {
     // }
 
     #[test]
-    fn test_test() {}
+    fn test_test() {
+        println!("{}", 33);
+    }
 }
