@@ -241,20 +241,10 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         let relation_type_ref = relation_type.get_mut();
         let relation_type_key = relation_type_ref.key;
         //todo 可优化;
-        relation_type_ref
-            .dst_to_relations
-            .values()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .for_each(
-                #[inline]
-                |x| {
-                    x.values().for_each(
-                        #[inline]
-                        |y| y.delete(),
-                    )
-                },
-            );
+        relation_type_ref.relations.values_mut().for_each(
+            #[inline]
+            |y| y.delete(),
+        );
 
         self.relation_types.remove(&relation_type_ref.key);
         self.relation_types_key_pool.ret(relation_type_key);
@@ -360,7 +350,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
     #[inline]
     pub unsafe fn outgoings(self) -> impl Iterator<Item = &'static args!(RelationPtr)> + 'static {
-        self.get().relation_type_to_dst_relation.values() //todo 可能有重复
+        self.get().relation_type_to_dst_relation.values()
     }
     #[inline]
     pub unsafe fn incoming(
@@ -418,7 +408,6 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     pub unsafe fn create_relation_with_data<'a>(
         self,
         src: args!(ConceptPtr),
-        dst_iter: impl Clone + Iterator<Item = &'a args!(ConceptPtr)>,
         data: RelationData,
     ) -> Result<args!(RelationPtr), (args!(RelationPtr), RelationData)>
     where
@@ -448,7 +437,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
                         data,
                         relation_type: self,
                         src: ConceptPtr::new_from_ref(src.get()),
-                        key_to_dst: dst_iter.clone().map(|x| (x.key(), *x)).collect::<_>(),
+                        key_to_dst: Default::default(),
                     }),
                 );
 
@@ -456,16 +445,6 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
                 src.get_mut()
                     .relation_type_to_dst_relation
                     .insert(relation_type_key, relation_ref);
-                let relation_type_dst_to_relation_ref = &mut relation_type_ptr.dst_to_relations;
-                dst_iter.for_each(|dst| {
-                    relation_type_dst_to_relation_ref
-                        .entry(dst.key())
-                        .or_insert_with(BTreeMap::new)
-                        .insert(key, relation_ref);
-                    dst.get_mut()
-                        .src_to_relation
-                        .insert(src.key(), relation_ref);
-                });
 
                 //封装并返回
                 return Ok(relation_ref);
@@ -481,22 +460,21 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     pub unsafe fn create_relation<'a>(
         self,
         src: args!(ConceptPtr),
-        dst_iter: impl Clone + Iterator<Item = &'a args!(ConceptPtr)>,
     ) -> Result<args!(RelationPtr), args!(RelationPtr)>
     where
         RelationData: Default + 'a,
         ConceptData: 'a,
         RelationTypeData: 'a,
     {
-        self.create_relation_with_data(src, dst_iter, Default::default())
+        self.create_relation_with_data(src, Default::default())
             .map_err(|(x, _)| x)
     }
 }
 impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
-    RelationPtr<ConceptData, RelationData, RelationTypeData>
+    Relation<ConceptData, RelationData, RelationTypeData>
 {
-    pub unsafe fn delete(self) {
-        let relation = self.get();
+    unsafe fn delete(&mut self) {
+        let relation = self;
         let relation_key = relation.key;
         relation.key_to_dst.iter().for_each(
             #[inline]
@@ -519,5 +497,36 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         let relation_type = relation.relation_type.get_mut();
         relation_type.relations.remove(&relation_key);
         relation_type.relations_key_pool.ret(relation_key);
+    }
+}
+
+impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
+    RelationPtr<ConceptData, RelationData, RelationTypeData>
+{
+    #[inline]
+    pub unsafe fn delete(self) {
+        self.get_mut().delete();
+    }
+    pub unsafe fn add_concept(self, dst: args!(ConceptPtr)) -> bool {
+        let rel = self.get_mut();
+        let dst_key = dst.key();
+
+        match rel.key_to_dst.entry(dst_key) {
+            //可加入
+            Entry::Vacant(entry) => {
+                rel.relation_type
+                    .get_mut()
+                    .dst_to_relations
+                    .entry(dst_key)
+                    .or_insert_with(BTreeMap::new)
+                    .insert(dst_key, self);
+                dst.get_mut().src_to_relation.insert(rel.src.key(), self);
+                entry.insert(dst);
+                return true;
+            }
+            Entry::Occupied(entry) => {
+                return false;
+            }
+        }
     }
 }
