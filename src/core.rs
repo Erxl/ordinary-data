@@ -517,15 +517,37 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
                 rel.relation_type
                     .get_mut()
                     .dst_to_relations
-                    .entry(dst_key)
+                    .entry(dst_key) //如果ty还没有给dst身上接入关联，就新建一组
                     .or_insert_with(BTreeMap::new)
-                    .insert(dst_key, self);
+                    .insert(rel.key, self);
                 dst.get_mut().src_to_relation.insert(rel.src.key(), self);
                 entry.insert(dst);
                 return true;
             }
             Entry::Occupied(entry) => {
                 return false;
+            }
+        }
+    }
+    pub unsafe fn remove_concept(self, dst: args!(ConceptPtr)) -> bool {
+        let rel = self.get_mut();
+        let dst_key = dst.key();
+        match rel.key_to_dst.remove(&dst_key) {
+            //查无此人，无法移除
+            None => {
+                return false;
+            }
+            Some(_) => {
+                let dst_to_relations = &mut rel.relation_type.get_mut().dst_to_relations;
+                let relations = dst_to_relations.get_mut(&dst_key).unwrap_unchecked();
+                if relations.len() == 1 {
+                    //如果只剩一个，就带着树整个删了，节省一次删除
+                    dst_to_relations.remove(&dst_key);
+                } else {
+                    relations.remove(&rel.key);
+                }
+                dst.get_mut().src_to_relation.remove(&rel.src.key());
+                return true;
             }
         }
     }

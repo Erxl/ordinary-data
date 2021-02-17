@@ -182,21 +182,21 @@ fn test_accessing() {
         //let rl3 =
         //let rl4 = c.create_relation_with_data(ty, fr2, [to].iter(), Some(Box::new(2))).unwrap_unchecked();
 
-        // //正连接测试
-        // assert!(fr.outgoing(ty).unwrap() == rl);
-        // assert!(fr.outgoing(ty2).unwrap() == rl2);
-        // assert_eq!(fr.outgoings().count(), 2);
-        // assert_eq!(fr.outgoings().filter(|x| **x == rl).count(), 1);
-        // assert_eq!(fr.outgoings().filter(|x| **x == rl2).count(), 1);
-        // assert_eq!(to.incoming(ty).unwrap().len(), 1);
-        // assert!(*to.incoming(ty).unwrap().values().next().unwrap() == rl);
-        // assert_eq!(to.incoming(ty2).unwrap().len(), 1);
-        // assert!(*to.incoming(ty2).unwrap().values().next().unwrap() == rl2);
-        // assert_eq!(to.incomings().count(), 2);
-        // assert_eq!(to.incomings().filter(|x| **x == rl).count(), 1);
-        // assert_eq!(to.incomings().filter(|x| **x == rl2).count(), 1);
-        // //assert_eq!(to.incomings().filter(|x| **x == rl4).count(), 1);
-        // assert!(fr.relation(to).unwrap() == rl);
+        //正连接测试
+        assert!(fr.outgoing(ty).unwrap() == rl);
+        assert!(fr.outgoing(ty2).unwrap() == rl2);
+        assert_eq!(fr.outgoings().count(), 2);
+        assert_eq!(fr.outgoings().filter(|x| **x == rl).count(), 1);
+        assert_eq!(fr.outgoings().filter(|x| **x == rl2).count(), 1);
+        assert_eq!(to.incoming(ty).unwrap().len(), 1);
+        assert!(*to.incoming(ty).unwrap().values().next().unwrap() == rl);
+        assert_eq!(to.incoming(ty2).unwrap().len(), 1);
+        assert!(*to.incoming(ty2).unwrap().values().next().unwrap() == rl2);
+        assert_eq!(to.incomings().count(), 2);
+        assert_eq!(to.incomings().filter(|x| **x == rl).count(), 1);
+        assert_eq!(to.incomings().filter(|x| **x == rl2).count(), 1);
+        //assert_eq!(to.incomings().filter(|x| **x == rl4).count(), 1);
+        assert!(fr.relation(to).unwrap() == rl);
         //
         // //反连接测试
         // assert!(to.outgoing(ty).unwrap() == rl_inv);
@@ -310,7 +310,7 @@ fn test_accessing() {
 
     #[test]
     fn test_test() {
-        //BTreeMap::entry(&mut self, key).or_insert()
+        //BTreeMap::entry(&mut self, key).or_default()
         println!("{}", 33);
     }
 }
