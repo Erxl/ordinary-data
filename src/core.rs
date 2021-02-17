@@ -12,14 +12,14 @@ use std::collections::btree_map::Entry;
 use std::collections::*;
 use std::ptr::NonNull;
 
-#[inline]
-unsafe fn staticize_ref<T>(x: &T) -> &'static T {
-    &*(x as *const T)
-}
-#[inline]
-unsafe fn staticize_mut<T>(x: &mut T) -> &'static mut T {
-    &mut *(x as *mut T)
-}
+// #[inline]
+// unsafe fn staticize_ref<T>(x: &T) -> &'static T {
+//     &*(x as *const T)
+// }
+// #[inline]
+// unsafe fn staticize_mut<T>(x: &mut T) -> &'static mut T {
+//     &mut *(x as *mut T)
+// }
 //——————————————————————————————————————————————————————结构—————————————————————————————————————————
 macro_rules! args {($ty:ident) => {$ty<ConceptData, RelationData, RelationTypeData>}}
 
