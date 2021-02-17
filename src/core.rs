@@ -379,7 +379,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
 
     #[inline]
     pub unsafe fn relation(self, dst: args!(ConceptPtr)) -> Option<args!(RelationPtr)> {
-        RelationTypePtr::relation(self, dst)
+        dst.get().src_to_relation.get(&self.key()).cloned()
     }
 }
 
@@ -393,14 +393,6 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
             |x| x.values(),
         )
     }
-    #[inline]
-    pub unsafe fn relation(
-        src: args!(ConceptPtr),
-        dst: args!(ConceptPtr),
-    ) -> Option<args!(RelationPtr)> {
-        dst.get().src_to_relation.get(&src.key()).cloned()
-    }
-
     #[inline]
     pub unsafe fn contains_relation(self, relation: args!(RelationPtr)) -> bool {
         self.contains_relation_key(relation.key())
