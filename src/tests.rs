@@ -137,9 +137,9 @@ fn test_iter() {
 
 #[test]
 fn test_accessing() {
-    unsafe {
-        use std::rc::*;
+    use std::rc::*;
 
+    let names = unsafe {
         //内存泄漏检测
         let fr_name = Rc::new("fr");
         let ty_name = Rc::new("ty");
@@ -190,9 +190,9 @@ fn test_accessing() {
         assert!(ty2.create_relation(to).unwrap_err() == rl2_inv);
         assert!(!rl2_inv.add_concept(fr));
 
-        //多路测试
-        let to2 = c.create_concept_with_data(Some(fr2_name));
-        let fr2 = c.create_concept_with_data(Some(to2_name));
+        //多连接测试
+        let to2 = c.create_concept_with_data(Some(fr2_name.clone()));
+        let fr2 = c.create_concept_with_data(Some(to2_name.clone()));
         assert!(rl.add_concept(to2));
         assert!(!rl.add_concept(to2));
         let fr2_rl = ty
@@ -200,6 +200,12 @@ fn test_accessing() {
             .unwrap();
         assert!(fr2_rl.add_concept(to));
         assert!(!fr2_rl.add_concept(to));
+        assert_eq!(*rl.destinations().get(&to2.key()).unwrap(), to2);
+        assert_eq!(rl.destinations().len(), 2);
+        assert_eq!(rl.source(), fr);
+        assert_eq!(*fr2_rl.destinations().get(&to.key()).unwrap(), to);
+        assert_eq!(fr2_rl.destinations().len(), 1);
+        assert_eq!(fr2_rl.source(), fr2);
 
         //删除测试
         assert!(rl.remove_concept(to2));
@@ -213,6 +219,7 @@ fn test_accessing() {
             .create_relation_with_data(fr, Some(del5_name.clone()))
             .unwrap_err();
         assert!(rl.add_concept(to2));
+        assert!(!rl.add_concept(to2));
 
         //取数据测试
         assert!(err.0 == rl);
@@ -252,105 +259,130 @@ fn test_accessing() {
         assert_eq!(fr.incomings_all().filter(|x| **x == rl2_inv).count(), 1);
         assert_eq!(to.relations(fr).unwrap().count(), 2);
         assert!(to.relations(fr).unwrap().next().unwrap() == rl_inv);
-    }
-    // #[test]
-    // fn test_info() {
-    //     unsafe {
-    //         let mut c = StdContainer::<Option<Box<dyn std::any::Any>>, ()>::new();
-    //
-    //         //创建属性
-    //         let prop_people = c.create_concept();
-    //         let prop_age = c.create_concept();
-    //         let prop_name = c.create_concept();
-    //         let prop_interest = c.create_concept();
-    //         let prop_sex = c.create_concept();
-    //
-    //         //创建对象
-    //         let sys = c.create_concept();
-    //         let person_zhao_shan = c.create_concept();
-    //         let person_ji_zi_shan = c.create_concept();
-    //         let person_wang_yu_xuan = c.create_concept();
-    //         let sex_male = c.create_concept();
-    //         let sex_female = c.create_concept();
-    //         let age_16 = c.create_concept_with_data(Some(Box::new(16)));
-    //         let age_12 = c.create_concept_with_data(Some(Box::new(12)));
-    //         let age_18 = c.create_concept_with_data(Some(Box::new(15)));
-    //         let name_zhao_shan = c.create_concept_with_data(Some(Box::new(String::from("赵善"))));
-    //         let name_ji_zi_shan = c.create_concept_with_data(Some(Box::new(String::from("季子杉"))));
-    //         let name_wang_yu_xuan = c.create_concept_with_data(Some(Box::new(String::from("王宇轩"))));
-    //         let interest_rust_developing = c.create_concept_with_data(Some(Box::new(String::from("Rust开发"))));
-    //         let interest_game_developing = c.create_concept_with_data(Some(Box::new(String::from("游戏开发"))));
-    //         let interest_ui_disign = c.create_concept_with_data(Some(Box::new(String::from("UI设计"))));
-    //         let interest_csharp_developing = c.create_concept_with_data(Some(Box::new(String::from("C#开发"))));
-    //         let interest_minecraft = c.create_concept_with_data(Some(Box::new(String::from("玩Minecraft"))));
-    //         let interest_dlang_developing = c.create_concept_with_data(Some(Box::new(String::from("D语言开发"))));
-    //
-    //         //创建关系
-    //         c.create_relation(prop_people, sys, [
-    //             person_zhao_shan,
-    //             person_ji_zi_shan,
-    //             person_wang_yu_xuan].iter());
-    //
-    //         c.create_relation(prop_sex, person_zhao_shan, [sex_male].iter());
-    //         c.create_relation(prop_sex, person_wang_yu_xuan, [sex_female].iter());
-    //         c.create_relation(prop_sex, person_ji_zi_shan, [sex_male].iter());
-    //
-    //         c.create_relation(prop_age, person_zhao_shan, [age_12].iter());
-    //         c.create_relation(prop_age, person_wang_yu_xuan, [age_16].iter());
-    //         c.create_relation(prop_age, person_ji_zi_shan, [age_18].iter());
-    //
-    //         c.create_relation(prop_name, person_zhao_shan, [name_zhao_shan].iter());
-    //         c.create_relation(prop_name, person_wang_yu_xuan, [name_wang_yu_xuan].iter());
-    //         c.create_relation(prop_name, person_ji_zi_shan, [name_ji_zi_shan].iter());
-    //
-    //         c.create_relation(prop_interest, person_wang_yu_xuan, [
-    //             interest_csharp_developing,
-    //             interest_dlang_developing,
-    //             interest_minecraft].iter());
-    //         c.create_relation(prop_interest, person_zhao_shan, [
-    //             interest_rust_developing,
-    //             interest_game_developing,
-    //             interest_minecraft].iter());
-    //         let r = c.create_relation(prop_interest, person_ji_zi_shan, [
-    //             interest_rust_developing,
-    //             interest_ui_disign,
-    //             interest_minecraft].iter());
-    //
-    //         assert!(person_ji_zi_shan.relations_out().values().find(|x| x.kind() == prop_sex).unwrap().to().get(&sex_male.key()).unwrap().relations_in().values().find(|x| x.from() == person_ji_zi_shan).unwrap().from().relations_out().get(&r.key()).unwrap().to().values().map(|x| x.data().as_ref().unwrap().downcast_ref::<String>().unwrap()).any(|x| *x == "玩Minecraft"));
-    //
-    //     }
-    // }
-    //
-    // #[test]
-    // fn test_other() {
-    //     fn aaa(aaa: C) {}
-    //     fn aaaa(aaa: A) {}
-    //     struct A {
-    //         aa: Vec<Box<B>>
-    //     }
-    //     struct B {
-    //         a: i32
-    //     }
-    //     struct C<'a> {
-    //         a: &'a B
-    //     }
-    //     impl A {
-    //         fn get(&self) -> C {
-    //             unsafe { C { a: &self.aa.get(0).unwrap() } }
-    //         }
-    //     }
-    //     let mut v = Vec::new();
-    //     v.push(Box::new(B { a: 3434 }));
-    //     let a = A { aa: v };
-    //     let b = a.get();
-    //     //aaaa(a);
-    //     aaa(b);
-    //     //println!("{}", b.a.a)
-    // }
 
-    #[test]
-    fn test_test() {
-        //BTreeMap::entry(&mut self, key).or_default()
-        println!("{}", 33);
-    }
+        let names: [Rc<dyn Any + 'static>; 17] = [
+            fr_name,
+            ty_name,
+            ty2_name,
+            to_name,
+            rl_name,
+            rl2_name,
+            rl_inv_name,
+            rl2_inv_name,
+            fr2_name,
+            to2_name,
+            del_name,
+            del1_name,
+            del2_name,
+            del3_name,
+            del4_name,
+            del5_name,
+            fr2_rl_name,
+        ];
+        names
+            .into_iter()
+            .map(|x| Rc::downgrade(x))
+            .collect::<Vec<_>>()
+    };
+    names.iter().for_each(|x| assert!(x.strong_count() == 0));
+}
+// #[test]
+// fn test_info() {
+//     unsafe {
+//         let mut c = StdContainer::<Option<Box<dyn std::any::Any>>, ()>::new();
+//
+//         //创建属性
+//         let prop_people = c.create_concept();
+//         let prop_age = c.create_concept();
+//         let prop_name = c.create_concept();
+//         let prop_interest = c.create_concept();
+//         let prop_sex = c.create_concept();
+//
+//         //创建对象
+//         let sys = c.create_concept();
+//         let person_zhao_shan = c.create_concept();
+//         let person_ji_zi_shan = c.create_concept();
+//         let person_wang_yu_xuan = c.create_concept();
+//         let sex_male = c.create_concept();
+//         let sex_female = c.create_concept();
+//         let age_16 = c.create_concept_with_data(Some(Box::new(16)));
+//         let age_12 = c.create_concept_with_data(Some(Box::new(12)));
+//         let age_18 = c.create_concept_with_data(Some(Box::new(15)));
+//         let name_zhao_shan = c.create_concept_with_data(Some(Box::new(String::from("赵善"))));
+//         let name_ji_zi_shan = c.create_concept_with_data(Some(Box::new(String::from("季子杉"))));
+//         let name_wang_yu_xuan = c.create_concept_with_data(Some(Box::new(String::from("王宇轩"))));
+//         let interest_rust_developing = c.create_concept_with_data(Some(Box::new(String::from("Rust开发"))));
+//         let interest_game_developing = c.create_concept_with_data(Some(Box::new(String::from("游戏开发"))));
+//         let interest_ui_disign = c.create_concept_with_data(Some(Box::new(String::from("UI设计"))));
+//         let interest_csharp_developing = c.create_concept_with_data(Some(Box::new(String::from("C#开发"))));
+//         let interest_minecraft = c.create_concept_with_data(Some(Box::new(String::from("玩Minecraft"))));
+//         let interest_dlang_developing = c.create_concept_with_data(Some(Box::new(String::from("D语言开发"))));
+//
+//         //创建关系
+//         c.create_relation(prop_people, sys, [
+//             person_zhao_shan,
+//             person_ji_zi_shan,
+//             person_wang_yu_xuan].iter());
+//
+//         c.create_relation(prop_sex, person_zhao_shan, [sex_male].iter());
+//         c.create_relation(prop_sex, person_wang_yu_xuan, [sex_female].iter());
+//         c.create_relation(prop_sex, person_ji_zi_shan, [sex_male].iter());
+//
+//         c.create_relation(prop_age, person_zhao_shan, [age_12].iter());
+//         c.create_relation(prop_age, person_wang_yu_xuan, [age_16].iter());
+//         c.create_relation(prop_age, person_ji_zi_shan, [age_18].iter());
+//
+//         c.create_relation(prop_name, person_zhao_shan, [name_zhao_shan].iter());
+//         c.create_relation(prop_name, person_wang_yu_xuan, [name_wang_yu_xuan].iter());
+//         c.create_relation(prop_name, person_ji_zi_shan, [name_ji_zi_shan].iter());
+//
+//         c.create_relation(prop_interest, person_wang_yu_xuan, [
+//             interest_csharp_developing,
+//             interest_dlang_developing,
+//             interest_minecraft].iter());
+//         c.create_relation(prop_interest, person_zhao_shan, [
+//             interest_rust_developing,
+//             interest_game_developing,
+//             interest_minecraft].iter());
+//         let r = c.create_relation(prop_interest, person_ji_zi_shan, [
+//             interest_rust_developing,
+//             interest_ui_disign,
+//             interest_minecraft].iter());
+//
+//         assert!(person_ji_zi_shan.relations_out().values().find(|x| x.kind() == prop_sex).unwrap().to().get(&sex_male.key()).unwrap().relations_in().values().find(|x| x.from() == person_ji_zi_shan).unwrap().from().relations_out().get(&r.key()).unwrap().to().values().map(|x| x.data().as_ref().unwrap().downcast_ref::<String>().unwrap()).any(|x| *x == "玩Minecraft"));
+//
+//     }
+// }
+//
+// #[test]
+// fn test_other() {
+//     fn aaa(aaa: C) {}
+//     fn aaaa(aaa: A) {}
+//     struct A {
+//         aa: Vec<Box<B>>
+//     }
+//     struct B {
+//         a: i32
+//     }
+//     struct C<'a> {
+//         a: &'a B
+//     }
+//     impl A {
+//         fn get(&self) -> C {
+//             unsafe { C { a: &self.aa.get(0).unwrap() } }
+//         }
+//     }
+//     let mut v = Vec::new();
+//     v.push(Box::new(B { a: 3434 }));
+//     let a = A { aa: v };
+//     let b = a.get();
+//     //aaaa(a);
+//     aaa(b);
+//     //println!("{}", b.a.a)
+// }
+
+#[test]
+fn test_test() {
+    //BTreeMap::entry(&mut self, key).or_default()
+    println!("{}", 33);
 }
