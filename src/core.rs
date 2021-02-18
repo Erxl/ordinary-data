@@ -21,7 +21,6 @@ use std::ptr::NonNull;
 //     &mut *(x as *mut T)
 // }
 //——————————————————————————————————————————————————————结构—————————————————————————————————————————
-macro_rules! args {($ty:ident) => {$ty<ConceptData, RelationData, RelationTypeData>}}
 
 #[derive(Default)]
 struct KeyPool(u64);
@@ -40,32 +39,35 @@ impl KeyPool {
 pub struct Container<ConceptData = (), RelationData = (), RelationTypeData = ()> {
     concepts_key_pool: KeyPool,
     relationtypes_key_pool: KeyPool,
-    concepts: BTreeMap<u64, args!(Concept)>,
+    concepts: BTreeMap<u64, Concept<ConceptData, RelationData, RelationTypeData>>,
     //todo 使用ordclct树，避免多次引用造成的性能损失
-    relationtypes: BTreeMap<u64, args!(RelationType)>,
+    relationtypes: BTreeMap<u64, RelationType<ConceptData, RelationData, RelationTypeData>>,
 }
 
 pub struct Concept<ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: ConceptData,
-    relationtype_to_dst_relation: BTreeMap<u64, args!(RelationPtr)>,
-    src_to_relationtype_relation: BTreeMap<u64, BTreeMap<u64,args!(RelationPtr)>>,
+    relationtype_to_dst_relation:
+        BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>,
+    src_to_relationtype_relation:
+        BTreeMap<u64, BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>>,
 }
 
 pub struct RelationType<ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: RelationTypeData,
-    relations: BTreeMap<u64, args!(Relation)>,
-    dst_to_relations: BTreeMap<u64, BTreeMap<u64, args!(RelationPtr)>>,
+    relations: BTreeMap<u64, Relation<ConceptData, RelationData, RelationTypeData>>,
+    dst_to_relations:
+        BTreeMap<u64, BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>>,
     relations_key_pool: KeyPool,
 }
 
 pub struct Relation<ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: RelationData,
-    relationtype: args!(RelationTypePtr),
-    src: args!(ConceptPtr),
-    key_to_dst: BTreeMap<u64, args!(ConceptPtr)>,
+    relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
+    src: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+    key_to_dst: BTreeMap<u64, ConceptPtr<ConceptData, RelationData, RelationTypeData>>,
 }
 
 macro_rules! declare {
@@ -131,30 +133,32 @@ macro_rules! declare {
             }
             #[inline]
             #[allow(dead_code)]
-            unsafe fn get_mut(&self) -> &'static mut args!($ty) {
+            unsafe fn get_mut(
+                &self,
+            ) -> &'static mut $ty<ConceptData, RelationData, RelationTypeData> {
                 &mut *self.as_ptr()
             }
             #[inline]
             #[allow(dead_code)]
-            unsafe fn get(&self) -> &'static args!($ty) {
+            unsafe fn get(&self) -> &'static $ty<ConceptData, RelationData, RelationTypeData> {
                 &(*self.0.as_ptr())
             }
             #[inline]
             #[allow(dead_code)]
-            fn as_ptr(&self) -> *mut args!($ty) {
+            fn as_ptr(&self) -> *mut $ty<ConceptData, RelationData, RelationTypeData> {
                 self.0.as_ptr()
             }
             #[inline]
             #[allow(dead_code)]
             fn new_from_ptr(
-                ptr: *const args!($ty),
+                ptr: *const $ty<ConceptData, RelationData, RelationTypeData>,
             ) -> $ty_ptr<ConceptData, RelationData, RelationTypeData> {
                 unsafe { Self(NonNull::new_unchecked(ptr as _)) }
             }
             #[inline]
             #[allow(dead_code)]
             fn new_from_ref(
-                x: &args!($ty),
+                x: &$ty<ConceptData, RelationData, RelationTypeData>,
             ) -> $ty_ptr<ConceptData, RelationData, RelationTypeData> {
                 unsafe { Self(NonNull::new_unchecked(x as *const $ty<_, _, _> as _)) }
             }
@@ -176,13 +180,16 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
     //——————————————————————————————————————————————————————增删—————————————————————————————————————
     #[inline]
-    pub fn create_concept(&mut self) -> args!(ConceptPtr)
+    pub fn create_concept(&mut self) -> ConceptPtr<ConceptData, RelationData, RelationTypeData>
     where
         ConceptData: Default,
     {
         self.create_concept_with_data(Default::default())
     }
-    pub fn create_concept_with_data(&mut self, data: ConceptData) -> args!(ConceptPtr) {
+    pub fn create_concept_with_data(
+        &mut self,
+        data: ConceptData,
+    ) -> ConceptPtr<ConceptData, RelationData, RelationTypeData> {
         let key = self.concepts_key_pool.rent();
 
         ConceptPtr::new_from_ref(self.concepts.entry(key).or_insert(Concept {
@@ -193,7 +200,10 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         }))
     }
 
-    pub unsafe fn delete_concept(&mut self, concept: args!(ConceptPtr)) {
+    pub unsafe fn delete_concept(
+        &mut self,
+        concept: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+    ) {
         let c = concept.get_mut();
         let key = c.key;
 
@@ -204,7 +214,9 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
             .into_iter()
             .for_each(|x| x.delete());
         c.src_to_relationtype_relation
-            .values().map(|x| x.values()).flatten()
+            .values()
+            .map(|x| x.values())
+            .flatten()
             .collect::<Vec<_>>()
             .into_iter()
             .for_each(|x| x.delete());
@@ -214,7 +226,9 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
 
     #[inline]
-    pub fn create_relationtype(&mut self) -> args!(RelationTypePtr)
+    pub fn create_relationtype(
+        &mut self,
+    ) -> RelationTypePtr<ConceptData, RelationData, RelationTypeData>
     where
         RelationTypeData: Default,
     {
@@ -223,7 +237,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     pub fn create_relationtype_with_data(
         &mut self,
         data: RelationTypeData,
-    ) -> args!(RelationTypePtr) {
+    ) -> RelationTypePtr<ConceptData, RelationData, RelationTypeData> {
         //申请key
         let key = self.relationtypes_key_pool.rent();
 
@@ -237,7 +251,10 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         }))
     }
 
-    pub unsafe fn delete_relationtype(&mut self, relationtype: args!(RelationTypePtr)) {
+    pub unsafe fn delete_relationtype(
+        &mut self,
+        relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
+    ) {
         let relationtype_ref = relationtype.get_mut();
         let relationtype_key = relationtype_ref.key;
         //todo 可优化;
@@ -253,10 +270,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     //——————————————————————————————————————————————————————检索—————————————————————————————————————
     #[inline]
     pub fn relations_count(&self) -> usize {
-        self.relationtypes
-            .values()
-            .map(|x| x.relations.len())
-            .sum()
+        self.relationtypes.values().map(|x| x.relations.len()).sum()
     }
     #[inline]
     pub fn concepts_count(&self) -> usize {
@@ -268,7 +282,10 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
     //
     #[inline]
-    pub unsafe fn contains_concept(&mut self, concept: args!(ConceptPtr)) -> bool {
+    pub unsafe fn contains_concept(
+        &mut self,
+        concept: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> bool {
         self.contains_concept_key(concept.key())
     }
     #[inline]
@@ -276,7 +293,10 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         self.concepts.contains_key(&key)
     }
     #[inline]
-    pub unsafe fn get_concept(&mut self, key: u64) -> Option<args!(ConceptPtr)> {
+    pub unsafe fn get_concept(
+        &mut self,
+        key: u64,
+    ) -> Option<ConceptPtr<ConceptData, RelationData, RelationTypeData>> {
         self.concepts.get(&key).map(
             #[inline]
             |x| ConceptPtr::new_from_ref(x),
@@ -284,7 +304,10 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
 
     #[inline]
-    pub unsafe fn contains_relationtype(&mut self, relationtype: args!(RelationTypePtr)) -> bool {
+    pub unsafe fn contains_relationtype(
+        &mut self,
+        relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> bool {
         self.contains_relationtype_key(relationtype.key())
     }
     #[inline]
@@ -292,28 +315,38 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         self.relationtypes.contains_key(&key)
     }
     #[inline]
-    pub fn get_relationtype(&mut self, key: u64) -> Option<args!(RelationTypePtr)> {
+    pub fn get_relationtype(
+        &mut self,
+        key: u64,
+    ) -> Option<RelationTypePtr<ConceptData, RelationData, RelationTypeData>> {
         self.relationtypes.get(&key).map(
             #[inline]
             |x| RelationTypePtr::new_from_ref(x),
         )
     }
     #[inline]
-    pub fn concepts_iter(&self) -> impl Iterator<Item = args!(ConceptPtr)> + '_ {
+    pub fn concepts_iter(
+        &self,
+    ) -> impl Iterator<Item = ConceptPtr<ConceptData, RelationData, RelationTypeData>> + '_ {
         self.concepts.values().map(
             #[inline]
             |x| ConceptPtr::new_from_ref(x),
         )
     }
     #[inline]
-    pub fn relations_iter(&self) -> impl Iterator<Item = args!(RelationPtr)> + '_ {
+    pub fn relations_iter(
+        &self,
+    ) -> impl Iterator<Item = RelationPtr<ConceptData, RelationData, RelationTypeData>> + '_ {
         self.relationtypes
             .values()
             .flat_map(|x| x.relations.values())
             .map(RelationPtr::new_from_ref)
     }
     #[inline]
-    pub fn relationtypes_iter(&self) -> impl Iterator<Item = args!(RelationTypePtr)> + '_ {
+    pub fn relationtypes_iter(
+        &self,
+    ) -> impl Iterator<Item = RelationTypePtr<ConceptData, RelationData, RelationTypeData>> + '_
+    {
         self.relationtypes.values().map(
             #[inline]
             |x| RelationTypePtr::new_from_ref(x),
@@ -341,42 +374,62 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     #[inline]
     pub unsafe fn outgoing(
         self,
-        relationtype: args!(RelationTypePtr),
-    ) -> Option<args!(RelationPtr)> {
+        relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> Option<RelationPtr<ConceptData, RelationData, RelationTypeData>> {
         self.get()
             .relationtype_to_dst_relation
             .get(&relationtype.key())
             .cloned()
     }
     #[inline]
-    pub unsafe fn outgoings(self) -> impl Iterator<Item = &'static args!(RelationPtr)> + 'static {
+    pub unsafe fn outgoings(
+        self,
+    ) -> impl Iterator<Item = &'static RelationPtr<ConceptData, RelationData, RelationTypeData>> + 'static
+    {
         self.get().relationtype_to_dst_relation.values()
     }
     #[inline]
     pub unsafe fn incomings(
         self,
-        relationtype: args!(RelationTypePtr),
-    ) -> Option<&'static BTreeMap<u64, args!(RelationPtr)>> {
+        relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> Option<&'static BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>>
+    {
         relationtype.get().dst_to_relations.get(&self.key()).map(
             #[inline]
             |x| &*(x as *const _),
         )
     }
     #[inline]
-    pub unsafe fn incoming_relationtypes(self) -> impl Iterator<Item = &'static BTreeMap<u64,args!(RelationPtr)>> + 'static {
+    pub unsafe fn incoming_relationtypes(
+        self,
+    ) -> impl Iterator<
+        Item = &'static BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>,
+    > + 'static {
         self.get().src_to_relationtype_relation.values()
     }
     #[inline]
-    pub unsafe fn incomings_all(self) -> impl Iterator<Item = &'static args!(RelationPtr)> + 'static {
-        self.incoming_relationtypes().map(|x|x.values()).flatten()
+    pub unsafe fn incomings_all(
+        self,
+    ) -> impl Iterator<Item = &'static RelationPtr<ConceptData, RelationData, RelationTypeData>> + 'static
+    {
+        self.incoming_relationtypes().map(|x| x.values()).flatten()
     }
     #[inline]
-    pub unsafe fn relations_relationtype(self, dst: args!(ConceptPtr)) -> Option<&'static BTreeMap<u64,args!(RelationPtr)>> {
+    pub unsafe fn relations_relationtype(
+        self,
+        dst: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> Option<&'static BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>>
+    {
         dst.get().src_to_relationtype_relation.get(&self.key())
     }
     #[inline]
-    pub unsafe fn relations(self, dst: args!(ConceptPtr)) -> Option<impl Iterator<Item = args!(RelationPtr)>> {
-        self.relations_relationtype(dst).map(|x|x.values().cloned())
+    pub unsafe fn relations(
+        self,
+        dst: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> Option<impl Iterator<Item = RelationPtr<ConceptData, RelationData, RelationTypeData>>>
+    {
+        self.relations_relationtype(dst)
+            .map(|x| x.values().cloned())
     }
 }
 
@@ -384,14 +437,20 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     RelationTypePtr<ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
-    pub unsafe fn relations(self) -> impl Iterator<Item = &'static args!(RelationPtr)> + 'static {
+    pub unsafe fn relations(
+        self,
+    ) -> impl Iterator<Item = &'static RelationPtr<ConceptData, RelationData, RelationTypeData>> + 'static
+    {
         self.get().dst_to_relations.values().flat_map(
             #[inline]
             |x| x.values(),
         )
     }
     #[inline]
-    pub unsafe fn contains_relation(self, relation: args!(RelationPtr)) -> bool {
+    pub unsafe fn contains_relation(
+        self,
+        relation: RelationPtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> bool {
         self.contains_relation_key(relation.key())
     }
     #[inline]
@@ -399,14 +458,20 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         self.get().relations.contains_key(&key)
     }
     #[inline]
-    pub unsafe fn get_relation(self, key: u64) -> Option<args!(RelationPtr)> {
+    pub unsafe fn get_relation(
+        self,
+        key: u64,
+    ) -> Option<RelationPtr<ConceptData, RelationData, RelationTypeData>> {
         self.get().relations.get(&key).map(
             #[inline]
             |x| RelationPtr::new_from_ref(x),
         )
     }
     #[inline]
-    pub unsafe fn relations_iter(self) -> impl Iterator<Item = args!(RelationPtr)> + 'static {
+    pub unsafe fn relations_iter(
+        self,
+    ) -> impl Iterator<Item = RelationPtr<ConceptData, RelationData, RelationTypeData>> + 'static
+    {
         self.get().relations.values().map(
             #[inline]
             |x| RelationPtr::new_from_ref(x),
@@ -414,9 +479,15 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
     pub unsafe fn create_relation_with_data<'a>(
         self,
-        src: args!(ConceptPtr),
+        src: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
         data: RelationData,
-    ) -> Result<args!(RelationPtr), (args!(RelationPtr), RelationData)>
+    ) -> Result<
+        RelationPtr<ConceptData, RelationData, RelationTypeData>,
+        (
+            RelationPtr<ConceptData, RelationData, RelationTypeData>,
+            RelationData,
+        ),
+    >
     where
         RelationData: 'a,
         ConceptData: 'a,
@@ -466,8 +537,11 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     #[inline]
     pub unsafe fn create_relation<'a>(
         self,
-        src: args!(ConceptPtr),
-    ) -> Result<args!(RelationPtr), args!(RelationPtr)>
+        src: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> Result<
+        RelationPtr<ConceptData, RelationData, RelationTypeData>,
+        RelationPtr<ConceptData, RelationData, RelationTypeData>,
+    >
     where
         RelationData: Default + 'a,
         ConceptData: 'a,
@@ -493,7 +567,9 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
                     dst_to_relations.remove(&dst_key);
                 }
 
-                dst.get_mut().src_to_relationtype_relation.remove(&relation.src.key());
+                dst.get_mut()
+                    .src_to_relationtype_relation
+                    .remove(&relation.src.key());
             },
         );
         relation
@@ -514,7 +590,10 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     pub unsafe fn delete(self) {
         self.get_mut().delete();
     }
-    pub unsafe fn add_concept(self, dst: args!(ConceptPtr)) -> bool {
+    pub unsafe fn add_concept(
+        self,
+        dst: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> bool {
         let rel = self.get_mut();
         let dst_key = dst.key();
 
@@ -527,7 +606,11 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
                     .entry(dst_key) //如果ty还没有给dst身上接入关联，就新建一组
                     .or_insert_with(BTreeMap::new)
                     .insert(rel.key, self);
-                dst.get_mut().src_to_relationtype_relation.entry(rel.src.key()).or_insert_with(BTreeMap::new).insert(rel.relationtype.key(),self);
+                dst.get_mut()
+                    .src_to_relationtype_relation
+                    .entry(rel.src.key())
+                    .or_insert_with(BTreeMap::new)
+                    .insert(rel.relationtype.key(), self);
                 entry.insert(dst);
                 return true;
             }
@@ -536,7 +619,10 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
             }
         }
     }
-    pub unsafe fn remove_concept(self, dst: args!(ConceptPtr)) -> bool {
+    pub unsafe fn remove_concept(
+        self,
+        dst: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+    ) -> bool {
         let rel = self.get_mut();
         let dst_key = dst.key();
         match rel.key_to_dst.remove(&dst_key) {
@@ -553,9 +639,19 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
                 } else {
                     relations.remove(&rel.key);
                 }
-                dst.get_mut().src_to_relationtype_relation.remove(&rel.src.key());
+                dst.get_mut()
+                    .src_to_relationtype_relation
+                    .remove(&rel.src.key());
                 return true;
             }
         }
+    }
+    #[inline]
+    pub unsafe fn destinations(self)->&'static BTreeMap<u64,ConceptPtr<ConceptData, RelationData, RelationTypeData>>{
+        &self.get().key_to_dst
+    }
+    #[inline]
+    pub unsafe fn source(self)->ConceptPtr<ConceptData, RelationData, RelationTypeData>{
+        self.get().src
     }
 }
