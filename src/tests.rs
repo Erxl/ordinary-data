@@ -9,8 +9,6 @@
 */
 use super::*;
 use std::any::Any;
-use std::collections::{BTreeMap, BTreeSet};
-use std::ops::Deref;
 
 #[test]
 fn test_ref_data_create_delet() {
@@ -41,26 +39,26 @@ fn test_relations() {
         let mut c = Container::<(), (), ()>::new();
         assert_eq!(c.concepts_count(), 0);
         assert_eq!(c.relations_count(), 0);
-        assert_eq!(c.relation_types_count(), 0);
+        assert_eq!(c.relationtypes_count(), 0);
         let from = c.create_concept();
         let to = c.create_concept();
-        let prop = c.create_relation_type();
+        let prop = c.create_relationtype();
         assert_eq!(c.concepts_count(), 2);
         assert_eq!(c.relations_count(), 0);
-        assert_eq!(c.relation_types_count(), 1);
+        assert_eq!(c.relationtypes_count(), 1);
         let relation = prop.create_relation(from).unwrap();
         assert!(relation.add_concept(to));
         assert_eq!(c.concepts_count(), 2);
         assert_eq!(c.relations_count(), 1);
-        assert_eq!(c.relation_types_count(), 1);
+        assert_eq!(c.relationtypes_count(), 1);
         relation.delete();
         assert_eq!(c.concepts_count(), 2);
         assert_eq!(c.relations_count(), 0);
-        assert_eq!(c.relation_types_count(), 1);
+        assert_eq!(c.relationtypes_count(), 1);
         c.delete_concept(from);
         c.delete_concept(to);
-        c.delete_relation_type(prop);
-        assert_eq!(c.relation_types_count(), 0);
+        c.delete_relationtype(prop);
+        assert_eq!(c.relationtypes_count(), 0);
         assert_eq!(c.concepts_count(), 0);
         assert_eq!(c.relations_count(), 0);
     }
@@ -83,7 +81,7 @@ fn test_contains() {
         let from = c.create_concept_with_data(6);
         let to = c.create_concept_with_data(66);
         let to2 = c.create_concept_with_data(66);
-        let kind = c.create_relation_type_with_data(666);
+        let kind = c.create_relationtype_with_data(666);
 
         let r = kind.create_relation_with_data(from, 6666).unwrap();
         assert!(r.add_concept(to));
@@ -123,7 +121,7 @@ fn test_iter() {
         let mut c = Container::<i32, f32, i32>::new();
         let from = c.create_concept_with_data(666); //Six means good luck in China, while five means crying in China
         let to = c.create_concept_with_data(6666);
-        let kind = c.create_relation_type_with_data(66666);
+        let kind = c.create_relationtype_with_data(66666);
         let relation = kind.create_relation_with_data(from, 233.).unwrap();
         assert!(relation.add_concept(to));
         assert!(c.concepts_iter().any(|x| *x.data() == 666 && x == from));
@@ -132,7 +130,7 @@ fn test_iter() {
             .relations_iter()
             .any(|x| *x.data() == 233. && x == relation));
         assert!(c
-            .relation_types_iter()
+            .relationtypes_iter()
             .any(|x| *x.data() == 66666 && x == kind));
     }
 }
@@ -140,44 +138,85 @@ fn test_iter() {
 #[test]
 fn test_accessing() {
     unsafe {
+        use std::rc::*;
+
+        //内存泄漏检测
+        let fr_name = Rc::new("fr");
+        let ty_name = Rc::new("ty");
+        let ty2_name = Rc::new("ty2");
+        let to_name = Rc::new("to");
+        let rl_name = Rc::new("fr->rl(ty)->[to]");
+        let rl2_name = Rc::new("fr->rl2(ty2)->[to]");
+        let rl_inv_name = Rc::new(666);
+        let rl2_inv_name = Rc::new(666);
+        let fr2_name = Rc::new(666);
+        let to2_name = Rc::new(666);
+        let del_name = Rc::new(666);
+        let del1_name = Rc::new(666);
+        let del2_name = Rc::new(666);
+        let del3_name = Rc::new(666);
+        let del4_name = Rc::new(666);
+        let del5_name = Rc::new(666);
+        let fr2_rl_name = Rc::new(666);
+
         let mut c =
-            Container::<Option<Box<dyn Any>>, Option<Box<dyn Any>>, Option<Box<dyn Any>>>::new();
-        let fr = c.create_concept_with_data(Some(Box::new(555)));
-        let ty = c.create_relation_type_with_data(Some(Box::new(666)));
-        let ty2 = c.create_relation_type_with_data(Some(Box::new(666)));
-        let to = c.create_concept_with_data(Some(Box::new(777)));
+            Container::<Option<Rc<dyn Any>>, Option<Rc<dyn Any>>, Option<Rc<dyn Any>>>::new();
+        let fr = c.create_concept_with_data(Some(fr_name.clone()));
+        let ty = c.create_relationtype_with_data(Some(ty_name.clone()));
+        let ty2 = c.create_relationtype_with_data(Some(ty2_name.clone()));
+        let to = c.create_concept_with_data(Some(to_name.clone()));
+        //正向连接
         let rl = ty
-            .create_relation_with_data(fr, Some(Box::new(888)))
+            .create_relation_with_data(fr, Some(rl_name.clone()))
             .unwrap();
         assert!(rl.add_concept(to));
         assert!(ty.create_relation(fr).unwrap_err() == rl);
         let rl2 = ty2
-            .create_relation_with_data(fr, Some(Box::new(888)))
+            .create_relation_with_data(fr, Some(rl2_name.clone()))
             .unwrap();
         assert!(rl2.add_concept(to));
         assert!(ty2.create_relation(fr,).unwrap_err() == rl2);
+
+        //反向连接
         let rl_inv = ty
-            .create_relation_with_data(to, Some(Box::new(999)))
+            .create_relation_with_data(to, Some(rl_inv_name.clone()))
             .unwrap();
         assert!(rl_inv.add_concept(fr));
         assert!(ty.create_relation(to).unwrap_err() == rl_inv);
         let rl2_inv = ty2
-            .create_relation_with_data(to, Some(Box::new(999)))
+            .create_relation_with_data(to, Some(rl2_inv_name.clone()))
             .unwrap();
         assert!(rl2_inv.add_concept(fr));
         assert!(ty2.create_relation(to).unwrap_err() == rl2_inv);
         assert!(!rl2_inv.add_concept(fr));
-        let to2 = c.create_concept_with_data(Some(Box::new(777)));
-        let fr2 = c.create_concept_with_data(Some(Box::new(777)));
+
+        //多路测试
+        let to2 = c.create_concept_with_data(Some(fr2_name));
+        let fr2 = c.create_concept_with_data(Some(to2_name));
+        assert!(rl.add_concept(to2));
+        assert!(!rl.add_concept(to2));
+        let fr2_rl = ty
+            .create_relation_with_data(fr2, Some(fr2_rl_name.clone()))
+            .unwrap();
+        assert!(fr2_rl.add_concept(to));
+        assert!(!fr2_rl.add_concept(to));
+
+        //删除测试
+        assert!(rl.remove_concept(to2));
+        // let del0 = c.create_concept_with_data(Some(del1_name.clone()));
+        // let del1 = c.create_concept_with_data(Some(del2_name.clone()));
+        // let del2 = c.create_relationtype_with_data(Some(del4_name.clone()));
+        // let del4=del3.create_relation_with_data(del1,Some(del_name.clone());
 
         //这属于在fr的ty连接上再增加一个连接，一个源概念只能有一个同种类型的连接，这里不能用create方法
         let err = ty
-            .create_relation_with_data(fr, Some(Box::new(1)))
+            .create_relation_with_data(fr, Some(del5_name.clone()))
             .unwrap_err();
         assert!(rl.add_concept(to2));
 
+        //取数据测试
         assert!(err.0 == rl);
-        assert!(err.1.as_ref().unwrap().downcast_ref::<i32>().unwrap() == &1);
+        assert!(err.1.as_ref().unwrap().downcast_ref::<i32>().unwrap() == &666);
 
         //let rl3 =
         //let rl4 = c.create_relation_with_data(ty, fr2, [to].iter(), Some(Box::new(2))).unwrap_unchecked();
@@ -188,30 +227,31 @@ fn test_accessing() {
         assert_eq!(fr.outgoings().count(), 2);
         assert_eq!(fr.outgoings().filter(|x| **x == rl).count(), 1);
         assert_eq!(fr.outgoings().filter(|x| **x == rl2).count(), 1);
-        assert_eq!(to.incoming(ty).unwrap().len(), 1);
-        assert!(*to.incoming(ty).unwrap().values().next().unwrap() == rl);
-        assert_eq!(to.incoming(ty2).unwrap().len(), 1);
-        assert!(*to.incoming(ty2).unwrap().values().next().unwrap() == rl2);
-        assert_eq!(to.incomings().count(), 2);
-        assert_eq!(to.incomings().filter(|x| **x == rl).count(), 1);
-        assert_eq!(to.incomings().filter(|x| **x == rl2).count(), 1);
-        //assert_eq!(to.incomings().filter(|x| **x == rl4).count(), 1);
-        assert!(fr.relation(to).unwrap() == rl);
-        //
-        // //反连接测试
-        // assert!(to.outgoing(ty).unwrap() == rl_inv);
-        // assert!(to.outgoing(ty2).unwrap() == rl2_inv);
-        // assert_eq!(to.outgoings().count(), 2);
-        // assert_eq!(to.outgoings().filter(|x| **x == rl_inv).count(), 1);
-        // assert_eq!(to.outgoings().filter(|x| **x == rl2_inv).count(), 1);
-        // assert_eq!(fr.incoming(ty).unwrap().len(), 1);
-        // assert!(*fr.incoming(ty).unwrap().values().next().unwrap() == rl_inv);
-        // assert_eq!(fr.incoming(ty2).unwrap().len(), 1);
-        // assert!(*fr.incoming(ty2).unwrap().values().next().unwrap() == rl2_inv);
-        // assert_eq!(fr.incomings().count(), 2);
-        // assert_eq!(fr.incomings().filter(|x| **x == rl_inv).count(), 1);
-        // assert_eq!(fr.incomings().filter(|x| **x == rl2_inv).count(), 1);
-        // assert!(to.relation(fr).unwrap() == rl);
+        assert_eq!(to.incomings(ty).unwrap().len(), 2);
+        assert!(*to.incomings(ty).unwrap().values().next().unwrap() == rl);
+        assert_eq!(to.incomings(ty2).unwrap().len(), 1);
+        assert!(*to.incomings(ty2).unwrap().values().next().unwrap() == rl2);
+        assert_eq!(to.incomings_all().count(), 3);
+        assert_eq!(to.incomings_all().filter(|x| **x == rl).count(), 1);
+        assert_eq!(to.incomings_all().filter(|x| **x == rl2).count(), 1);
+        assert_eq!(fr.relations(to).unwrap().count(), 2);
+        assert!(fr.relations(to).unwrap().next().unwrap() == rl);
+
+        //反连接测试
+        assert!(to.outgoing(ty).unwrap() == rl_inv);
+        assert!(to.outgoing(ty2).unwrap() == rl2_inv);
+        assert_eq!(to.outgoings().count(), 2);
+        assert_eq!(to.outgoings().filter(|x| **x == rl_inv).count(), 1);
+        assert_eq!(to.outgoings().filter(|x| **x == rl2_inv).count(), 1);
+        assert_eq!(fr.incomings(ty).unwrap().len(), 1);
+        assert!(*fr.incomings(ty).unwrap().values().next().unwrap() == rl_inv);
+        assert_eq!(fr.incomings(ty2).unwrap().len(), 1);
+        assert!(*fr.incomings(ty2).unwrap().values().next().unwrap() == rl2_inv);
+        assert_eq!(fr.incomings_all().count(), 2);
+        assert_eq!(fr.incomings_all().filter(|x| **x == rl_inv).count(), 1);
+        assert_eq!(fr.incomings_all().filter(|x| **x == rl2_inv).count(), 1);
+        assert_eq!(to.relations(fr).unwrap().count(), 2);
+        assert!(to.relations(fr).unwrap().next().unwrap() == rl_inv);
     }
     // #[test]
     // fn test_info() {

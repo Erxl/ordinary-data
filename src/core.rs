@@ -39,17 +39,17 @@ impl KeyPool {
 
 pub struct Container<ConceptData = (), RelationData = (), RelationTypeData = ()> {
     concepts_key_pool: KeyPool,
-    relation_types_key_pool: KeyPool,
+    relationtypes_key_pool: KeyPool,
     concepts: BTreeMap<u64, args!(Concept)>,
     //todo 使用ordclct树，避免多次引用造成的性能损失
-    relation_types: BTreeMap<u64, args!(RelationType)>,
+    relationtypes: BTreeMap<u64, args!(RelationType)>,
 }
 
 pub struct Concept<ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: ConceptData,
-    relation_type_to_dst_relation: BTreeMap<u64, args!(RelationPtr)>,
-    src_to_relation: BTreeMap<u64, args!(RelationPtr)>,
+    relationtype_to_dst_relation: BTreeMap<u64, args!(RelationPtr)>,
+    src_to_relationtype_relation: BTreeMap<u64, BTreeMap<u64,args!(RelationPtr)>>,
 }
 
 pub struct RelationType<ConceptData, RelationData, RelationTypeData> {
@@ -63,7 +63,7 @@ pub struct RelationType<ConceptData, RelationData, RelationTypeData> {
 pub struct Relation<ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: RelationData,
-    relation_type: args!(RelationTypePtr),
+    relationtype: args!(RelationTypePtr),
     src: args!(ConceptPtr),
     key_to_dst: BTreeMap<u64, args!(ConceptPtr)>,
 }
@@ -188,8 +188,8 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         ConceptPtr::new_from_ref(self.concepts.entry(key).or_insert(Concept {
             key,
             data,
-            relation_type_to_dst_relation: Default::default(),
-            src_to_relation: Default::default(),
+            relationtype_to_dst_relation: Default::default(),
+            src_to_relationtype_relation: Default::default(),
         }))
     }
 
@@ -198,13 +198,13 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         let key = c.key;
 
         //todo 可优化;
-        c.relation_type_to_dst_relation //移除接出的关系
+        c.relationtype_to_dst_relation //移除接出的关系
             .values()
             .collect::<Vec<_>>()
             .into_iter()
             .for_each(|x| x.delete());
-        c.src_to_relation
-            .values()
+        c.src_to_relationtype_relation
+            .values().map(|x| x.values()).flatten()
             .collect::<Vec<_>>()
             .into_iter()
             .for_each(|x| x.delete());
@@ -214,21 +214,21 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
 
     #[inline]
-    pub fn create_relation_type(&mut self) -> args!(RelationTypePtr)
+    pub fn create_relationtype(&mut self) -> args!(RelationTypePtr)
     where
         RelationTypeData: Default,
     {
-        self.create_relation_type_with_data(Default::default())
+        self.create_relationtype_with_data(Default::default())
     }
-    pub fn create_relation_type_with_data(
+    pub fn create_relationtype_with_data(
         &mut self,
         data: RelationTypeData,
     ) -> args!(RelationTypePtr) {
         //申请key
-        let key = self.relation_types_key_pool.rent();
+        let key = self.relationtypes_key_pool.rent();
 
         //创建
-        RelationTypePtr::new_from_ref(self.relation_types.entry(key).or_insert(RelationType {
+        RelationTypePtr::new_from_ref(self.relationtypes.entry(key).or_insert(RelationType {
             key,
             data,
             dst_to_relations: Default::default(),
@@ -237,23 +237,23 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         }))
     }
 
-    pub unsafe fn delete_relation_type(&mut self, relation_type: args!(RelationTypePtr)) {
-        let relation_type_ref = relation_type.get_mut();
-        let relation_type_key = relation_type_ref.key;
+    pub unsafe fn delete_relationtype(&mut self, relationtype: args!(RelationTypePtr)) {
+        let relationtype_ref = relationtype.get_mut();
+        let relationtype_key = relationtype_ref.key;
         //todo 可优化;
-        relation_type_ref.relations.values_mut().for_each(
+        relationtype_ref.relations.values_mut().for_each(
             #[inline]
             |y| y.delete(),
         );
 
-        self.relation_types.remove(&relation_type_ref.key);
-        self.relation_types_key_pool.ret(relation_type_key);
+        self.relationtypes.remove(&relationtype_ref.key);
+        self.relationtypes_key_pool.ret(relationtype_key);
     }
 
     //——————————————————————————————————————————————————————检索—————————————————————————————————————
     #[inline]
     pub fn relations_count(&self) -> usize {
-        self.relation_types
+        self.relationtypes
             .values()
             .map(|x| x.relations.len())
             .sum()
@@ -263,8 +263,8 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         self.concepts.len()
     }
     #[inline]
-    pub fn relation_types_count(&self) -> usize {
-        self.relation_types.len()
+    pub fn relationtypes_count(&self) -> usize {
+        self.relationtypes.len()
     }
     //
     #[inline]
@@ -284,16 +284,16 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
 
     #[inline]
-    pub unsafe fn contains_relation_type(&mut self, relation_type: args!(RelationTypePtr)) -> bool {
-        self.contains_relation_type_key(relation_type.key())
+    pub unsafe fn contains_relationtype(&mut self, relationtype: args!(RelationTypePtr)) -> bool {
+        self.contains_relationtype_key(relationtype.key())
     }
     #[inline]
-    pub unsafe fn contains_relation_type_key(&mut self, key: u64) -> bool {
-        self.relation_types.contains_key(&key)
+    pub unsafe fn contains_relationtype_key(&mut self, key: u64) -> bool {
+        self.relationtypes.contains_key(&key)
     }
     #[inline]
-    pub fn get_relation_type(&mut self, key: u64) -> Option<args!(RelationTypePtr)> {
-        self.relation_types.get(&key).map(
+    pub fn get_relationtype(&mut self, key: u64) -> Option<args!(RelationTypePtr)> {
+        self.relationtypes.get(&key).map(
             #[inline]
             |x| RelationTypePtr::new_from_ref(x),
         )
@@ -307,14 +307,14 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
     #[inline]
     pub fn relations_iter(&self) -> impl Iterator<Item = args!(RelationPtr)> + '_ {
-        self.relation_types
+        self.relationtypes
             .values()
             .flat_map(|x| x.relations.values())
             .map(RelationPtr::new_from_ref)
     }
     #[inline]
-    pub fn relation_types_iter(&self) -> impl Iterator<Item = args!(RelationTypePtr)> + '_ {
-        self.relation_types.values().map(
+    pub fn relationtypes_iter(&self) -> impl Iterator<Item = args!(RelationTypePtr)> + '_ {
+        self.relationtypes.values().map(
             #[inline]
             |x| RelationTypePtr::new_from_ref(x),
         )
@@ -327,9 +327,9 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static> Def
     fn default() -> Self {
         Self {
             concepts_key_pool: Default::default(),
-            relation_types_key_pool: Default::default(),
+            relationtypes_key_pool: Default::default(),
             concepts: Default::default(),
-            relation_types: Default::default(),
+            relationtypes: Default::default(),
         }
     }
 }
@@ -341,35 +341,42 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     #[inline]
     pub unsafe fn outgoing(
         self,
-        relation_type: args!(RelationTypePtr),
+        relationtype: args!(RelationTypePtr),
     ) -> Option<args!(RelationPtr)> {
         self.get()
-            .relation_type_to_dst_relation
-            .get(&relation_type.key())
+            .relationtype_to_dst_relation
+            .get(&relationtype.key())
             .cloned()
     }
     #[inline]
     pub unsafe fn outgoings(self) -> impl Iterator<Item = &'static args!(RelationPtr)> + 'static {
-        self.get().relation_type_to_dst_relation.values()
+        self.get().relationtype_to_dst_relation.values()
     }
     #[inline]
-    pub unsafe fn incoming(
+    pub unsafe fn incomings(
         self,
-        relation_type: args!(RelationTypePtr),
+        relationtype: args!(RelationTypePtr),
     ) -> Option<&'static BTreeMap<u64, args!(RelationPtr)>> {
-        relation_type.get().dst_to_relations.get(&self.key()).map(
+        relationtype.get().dst_to_relations.get(&self.key()).map(
             #[inline]
             |x| &*(x as *const _),
         )
     }
     #[inline]
-    pub unsafe fn incomings(self) -> impl Iterator<Item = &'static args!(RelationPtr)> + 'static {
-        self.get().src_to_relation.values()
+    pub unsafe fn incoming_relationtypes(self) -> impl Iterator<Item = &'static BTreeMap<u64,args!(RelationPtr)>> + 'static {
+        self.get().src_to_relationtype_relation.values()
     }
-
     #[inline]
-    pub unsafe fn relation(self, dst: args!(ConceptPtr)) -> Option<args!(RelationPtr)> {
-        dst.get().src_to_relation.get(&self.key()).cloned()
+    pub unsafe fn incomings_all(self) -> impl Iterator<Item = &'static args!(RelationPtr)> + 'static {
+        self.incoming_relationtypes().map(|x|x.values()).flatten()
+    }
+    #[inline]
+    pub unsafe fn relations_relationtype(self, dst: args!(ConceptPtr)) -> Option<&'static BTreeMap<u64,args!(RelationPtr)>> {
+        dst.get().src_to_relationtype_relation.get(&self.key())
+    }
+    #[inline]
+    pub unsafe fn relations(self, dst: args!(ConceptPtr)) -> Option<impl Iterator<Item = args!(RelationPtr)>> {
+        self.relations_relationtype(dst).map(|x|x.values().cloned())
     }
 }
 
@@ -415,27 +422,27 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         ConceptData: 'a,
         RelationTypeData: 'a,
     {
-        let relation_type_ptr = self.get_mut();
+        let relationtype_ptr = self.get_mut();
 
         //申请key
-        let key = relation_type_ptr.relations_key_pool.rent();
+        let key = relationtype_ptr.relations_key_pool.rent();
 
         //得到类型key
-        let relation_type_key = relation_type_ptr.key;
+        let relationtype_key = relationtype_ptr.key;
 
         //判断此连接是否已存在
         match src
             .get_mut()
-            .relation_type_to_dst_relation
-            .entry(relation_type_key)
+            .relationtype_to_dst_relation
+            .entry(relationtype_key)
         {
             Entry::Vacant(entry) => {
                 //创建关系
                 let relation_ref = RelationPtr::new_from_ref(
-                    relation_type_ptr.relations.entry(key).or_insert(Relation {
+                    relationtype_ptr.relations.entry(key).or_insert(Relation {
                         key,
                         data,
-                        relation_type: self,
+                        relationtype: self,
                         src: ConceptPtr::new_from_ref(src.get()),
                         key_to_dst: Default::default(),
                     }),
@@ -443,15 +450,15 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
 
                 //注册关系
                 src.get_mut()
-                    .relation_type_to_dst_relation
-                    .insert(relation_type_key, relation_ref);
+                    .relationtype_to_dst_relation
+                    .insert(relationtype_key, relation_ref);
 
                 //封装并返回
                 return Ok(relation_ref);
             }
             Entry::Occupied(entry) => {
                 //关系已存在，取消创建，归还key
-                relation_type_ptr.relations_key_pool.ret(key);
+                relationtype_ptr.relations_key_pool.ret(key);
                 return Err((*entry.get(), data));
             }
         }
@@ -479,24 +486,24 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         relation.key_to_dst.iter().for_each(
             #[inline]
             |(dst_key, dst)| {
-                let dst_to_relations = &mut relation.relation_type.get_mut().dst_to_relations;
+                let dst_to_relations = &mut relation.relationtype.get_mut().dst_to_relations;
                 let dst_to_relations_relations = &mut dst_to_relations.get_mut(&dst_key).unwrap();
                 dst_to_relations_relations.remove(&relation_key);
                 if dst_to_relations_relations.is_empty() {
                     dst_to_relations.remove(&dst_key);
                 }
 
-                dst.get_mut().src_to_relation.remove(&relation.src.key());
+                dst.get_mut().src_to_relationtype_relation.remove(&relation.src.key());
             },
         );
         relation
             .src
             .get_mut()
-            .relation_type_to_dst_relation
-            .remove(&relation.relation_type.key());
-        let relation_type = relation.relation_type.get_mut();
-        relation_type.relations.remove(&relation_key);
-        relation_type.relations_key_pool.ret(relation_key);
+            .relationtype_to_dst_relation
+            .remove(&relation.relationtype.key());
+        let relationtype = relation.relationtype.get_mut();
+        relationtype.relations.remove(&relation_key);
+        relationtype.relations_key_pool.ret(relation_key);
     }
 }
 
@@ -514,13 +521,13 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         match rel.key_to_dst.entry(dst_key) {
             //可加入
             Entry::Vacant(entry) => {
-                rel.relation_type
+                rel.relationtype
                     .get_mut()
                     .dst_to_relations
                     .entry(dst_key) //如果ty还没有给dst身上接入关联，就新建一组
                     .or_insert_with(BTreeMap::new)
                     .insert(rel.key, self);
-                dst.get_mut().src_to_relation.insert(rel.src.key(), self);
+                dst.get_mut().src_to_relationtype_relation.entry(rel.src.key()).or_insert_with(BTreeMap::new).insert(rel.relationtype.key(),self);
                 entry.insert(dst);
                 return true;
             }
@@ -538,7 +545,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
                 return false;
             }
             Some(_) => {
-                let dst_to_relations = &mut rel.relation_type.get_mut().dst_to_relations;
+                let dst_to_relations = &mut rel.relationtype.get_mut().dst_to_relations;
                 let relations = dst_to_relations.get_mut(&dst_key).unwrap_unchecked();
                 if relations.len() == 1 {
                     //如果只剩一个，就带着树整个删了，节省一次删除
@@ -546,7 +553,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
                 } else {
                     relations.remove(&rel.key);
                 }
-                dst.get_mut().src_to_relation.remove(&rel.src.key());
+                dst.get_mut().src_to_relationtype_relation.remove(&rel.src.key());
                 return true;
             }
         }
