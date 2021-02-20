@@ -154,7 +154,7 @@ fn test_accessing() {
         let del_name = Rc::new(666);
         let del1_name = Rc::new(666);
         let del2_name = Rc::new(666);
-        let del3_name = Rc::new(666);
+        let del3_name = Rc::new("666".to_string());
         let del4_name = Rc::new(666);
         let del5_name = Rc::new(666);
         let fr2_rl_name = Rc::new(666);
