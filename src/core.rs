@@ -171,7 +171,7 @@ declare!(RelationPtr, Relation, RelationData);
 declare!(RelationTypePtr, RelationType, RelationTypeData);
 
 //——————————————————————————————————————————————————————实现—————————————————————————————————————————
-impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
+impl<ConceptData, RelationData, RelationTypeData>
     Container<ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
@@ -354,7 +354,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
 }
 
-impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static> Default
+impl<ConceptData, RelationData, RelationTypeData> Default
     for Container<ConceptData, RelationData, RelationTypeData>
 {
     fn default() -> Self {
@@ -368,7 +368,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static> Def
 }
 
 //todo 实现原始迭代器的所有功能
-impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
+impl<ConceptData, RelationData, RelationTypeData>
     ConceptPtr<ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
@@ -433,7 +433,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
 }
 
-impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
+impl<ConceptData, RelationData, RelationTypeData>
     RelationTypePtr<ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
@@ -551,7 +551,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
             .map_err(|(x, _)| x)
     }
 }
-impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
+impl<ConceptData, RelationData, RelationTypeData>
     Relation<ConceptData, RelationData, RelationTypeData>
 {
     unsafe fn delete(&mut self) {
@@ -583,7 +583,7 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
     }
 }
 
-impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
+impl<ConceptData, RelationData, RelationTypeData>
     RelationPtr<ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
@@ -647,11 +647,13 @@ impl<ConceptData: 'static, RelationData: 'static, RelationTypeData: 'static>
         }
     }
     #[inline]
-    pub unsafe fn destinations(self)->&'static BTreeMap<u64,ConceptPtr<ConceptData, RelationData, RelationTypeData>>{
+    pub unsafe fn destinations(
+        self,
+    ) -> &'static BTreeMap<u64, ConceptPtr<ConceptData, RelationData, RelationTypeData>> {
         &self.get().key_to_dst
     }
     #[inline]
-    pub unsafe fn source(self)->ConceptPtr<ConceptData, RelationData, RelationTypeData>{
+    pub unsafe fn source(self) -> ConceptPtr<ConceptData, RelationData, RelationTypeData> {
         self.get().src
     }
 }
