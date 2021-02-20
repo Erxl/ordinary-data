@@ -80,7 +80,7 @@ fn test_contains() {
 
         let from = c.create_concept_with_data(6);
         let to = c.create_concept_with_data(66);
-        let to2 = c.create_concept_with_data(66);
+        //let to2 = c.create_concept_with_data(66);
         let kind = c.create_relationtype_with_data(666);
 
         let r = kind.create_relation_with_data(from, 6666).unwrap();
@@ -260,7 +260,7 @@ fn test_accessing() {
         assert_eq!(to.relations(fr).unwrap().count(), 2);
         assert!(to.relations(fr).unwrap().next().unwrap() == rl_inv);
 
-        let names: [Rc<dyn Any + 'static>; 17] = [
+        let names: [Rc<dyn Any>; 17] = [
             fr_name,
             ty_name,
             ty2_name,
@@ -279,10 +279,7 @@ fn test_accessing() {
             del5_name,
             fr2_rl_name,
         ];
-        names
-            .into_iter()
-            .map(|x| Rc::downgrade(x))
-            .collect::<Vec<_>>()
+        names.iter().map(|x| Rc::downgrade(x)).collect::<Vec<_>>()
     };
     names.iter().for_each(|x| assert!(x.strong_count() == 0));
 }

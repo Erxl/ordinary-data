@@ -10,6 +10,7 @@
 use std::cmp::Ordering;
 use std::collections::btree_map::Entry;
 use std::collections::*;
+use std::marker::PhantomData;
 use std::ptr::NonNull;
 
 // #[inline]
@@ -36,95 +37,96 @@ impl KeyPool {
     pub fn ret(&mut self, _key: u64) {}
 }
 
-pub struct Container<ConceptData = (), RelationData = (), RelationTypeData = ()> {
+pub struct Container<'a, ConceptData: 'a = (), RelationData: 'a = (), RelationTypeData: 'a = ()> {
     concepts_key_pool: KeyPool,
     relationtypes_key_pool: KeyPool,
-    concepts: BTreeMap<u64, Concept<ConceptData, RelationData, RelationTypeData>>,
+    concepts: BTreeMap<u64, Concept<'a, ConceptData, RelationData, RelationTypeData>>,
     //todo 使用ordclct树，避免多次引用造成的性能损失
-    relationtypes: BTreeMap<u64, RelationType<ConceptData, RelationData, RelationTypeData>>,
+    relationtypes: BTreeMap<u64, RelationType<'a, ConceptData, RelationData, RelationTypeData>>,
 }
 
-pub struct Concept<ConceptData, RelationData, RelationTypeData> {
+pub struct Concept<'a, ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: ConceptData,
     relationtype_to_dst_relation:
-        BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>,
+        BTreeMap<u64, RelationPtr<'a, ConceptData, RelationData, RelationTypeData>>,
     src_to_relationtype_relation:
-        BTreeMap<u64, BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>>,
+        BTreeMap<u64, BTreeMap<u64, RelationPtr<'a, ConceptData, RelationData, RelationTypeData>>>,
 }
 
-pub struct RelationType<ConceptData, RelationData, RelationTypeData> {
+pub struct RelationType<'a, ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: RelationTypeData,
-    relations: BTreeMap<u64, Relation<ConceptData, RelationData, RelationTypeData>>,
+    relations: BTreeMap<u64, Relation<'a, ConceptData, RelationData, RelationTypeData>>,
     dst_to_relations:
-        BTreeMap<u64, BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>>,
+        BTreeMap<u64, BTreeMap<u64, RelationPtr<'a, ConceptData, RelationData, RelationTypeData>>>,
     relations_key_pool: KeyPool,
 }
 
-pub struct Relation<ConceptData, RelationData, RelationTypeData> {
+pub struct Relation<'a, ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: RelationData,
-    relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
-    src: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
-    key_to_dst: BTreeMap<u64, ConceptPtr<ConceptData, RelationData, RelationTypeData>>,
+    relationtype: RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData>,
+    src: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
+    key_to_dst: BTreeMap<u64, ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>>,
 }
 
 macro_rules! declare {
     ($ty_ptr:ident,$ty:ident,$ty_data:ident) => {
         #[derive(Debug)]
-        pub struct $ty_ptr<ConceptData, RelationData, RelationTypeData>(
-            NonNull<$ty<ConceptData, RelationData, RelationTypeData>>,
+        pub struct $ty_ptr<'a, ConceptData: 'a, RelationData: 'a, RelationTypeData: 'a>(
+            NonNull<$ty<'a, ConceptData, RelationData, RelationTypeData>>,
+            PhantomData<&'a ()>,
         );
-        impl<ConceptData, RelationData, RelationTypeData> Clone
-            for $ty_ptr<ConceptData, RelationData, RelationTypeData>
+        impl<'a, ConceptData: 'a, RelationData: 'a, RelationTypeData: 'a> Clone
+            for $ty_ptr<'a, ConceptData, RelationData, RelationTypeData>
         {
             #[inline]
             fn clone(&self) -> Self {
-                Self(self.0)
+                Self(self.0, Default::default())
             }
         }
-        impl<ConceptData, RelationData, RelationTypeData> PartialEq
-            for $ty_ptr<ConceptData, RelationData, RelationTypeData>
+        impl<'a, ConceptData, RelationData, RelationTypeData> PartialEq
+            for $ty_ptr<'a, ConceptData, RelationData, RelationTypeData>
         {
             #[inline]
             fn eq(&self, other: &Self) -> bool {
                 self.0.eq(&other.0)
             }
         }
-        impl<ConceptData, RelationData, RelationTypeData> Eq
-            for $ty_ptr<ConceptData, RelationData, RelationTypeData>
+        impl<'a, ConceptData, RelationData, RelationTypeData> Eq
+            for $ty_ptr<'a, ConceptData, RelationData, RelationTypeData>
         {
         }
-        impl<ConceptData, RelationData, RelationTypeData> PartialOrd
-            for $ty_ptr<ConceptData, RelationData, RelationTypeData>
+        impl<'a, ConceptData, RelationData, RelationTypeData> PartialOrd
+            for $ty_ptr<'a, ConceptData, RelationData, RelationTypeData>
         {
             #[inline]
             fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
                 self.0.partial_cmp(&other.0)
             }
         }
-        impl<ConceptData, RelationData, RelationTypeData> Ord
-            for $ty_ptr<ConceptData, RelationData, RelationTypeData>
+        impl<'a, ConceptData, RelationData, RelationTypeData> Ord
+            for $ty_ptr<'a, ConceptData, RelationData, RelationTypeData>
         {
             #[inline]
             fn cmp(&self, other: &Self) -> Ordering {
                 self.0.cmp(&other.0)
             }
         }
-        impl<ConceptData, RelationData, RelationTypeData> Copy
-            for $ty_ptr<ConceptData, RelationData, RelationTypeData>
+        impl<'a, ConceptData, RelationData, RelationTypeData> Copy
+            for $ty_ptr<'a, ConceptData, RelationData, RelationTypeData>
         {
         }
-        impl<ConceptData, RelationData, RelationTypeData>
-            $ty_ptr<ConceptData, RelationData, RelationTypeData>
+        impl<'a, ConceptData, RelationData, RelationTypeData>
+            $ty_ptr<'a, ConceptData, RelationData, RelationTypeData>
         {
             #[inline]
-            pub unsafe fn data(&self) -> &'static $ty_data {
+            pub unsafe fn data(&self) -> &'a $ty_data {
                 &(*self.0.as_ptr()).data
             }
             #[inline]
-            pub unsafe fn data_mut(&self) -> &'static mut $ty_data {
+            pub unsafe fn data_mut(&self) -> &'a mut $ty_data {
                 &mut (*self.as_ptr()).data
             }
             #[inline]
@@ -135,32 +137,37 @@ macro_rules! declare {
             #[allow(dead_code)]
             unsafe fn get_mut(
                 &self,
-            ) -> &'static mut $ty<ConceptData, RelationData, RelationTypeData> {
+            ) -> &'a mut $ty<'a, ConceptData, RelationData, RelationTypeData> {
                 &mut *self.as_ptr()
             }
             #[inline]
             #[allow(dead_code)]
-            unsafe fn get(&self) -> &'static $ty<ConceptData, RelationData, RelationTypeData> {
+            unsafe fn get(&self) -> &'a $ty<'a, ConceptData, RelationData, RelationTypeData> {
                 &(*self.0.as_ptr())
             }
             #[inline]
             #[allow(dead_code)]
-            fn as_ptr(&self) -> *mut $ty<ConceptData, RelationData, RelationTypeData> {
+            fn as_ptr(&self) -> *mut $ty<'a, ConceptData, RelationData, RelationTypeData> {
                 self.0.as_ptr()
             }
             #[inline]
             #[allow(dead_code)]
             fn new_from_ptr(
-                ptr: *const $ty<ConceptData, RelationData, RelationTypeData>,
-            ) -> $ty_ptr<ConceptData, RelationData, RelationTypeData> {
-                unsafe { Self(NonNull::new_unchecked(ptr as _)) }
+                ptr: *const $ty<'a, ConceptData, RelationData, RelationTypeData>,
+            ) -> $ty_ptr<'a, ConceptData, RelationData, RelationTypeData> {
+                unsafe { Self(NonNull::new_unchecked(ptr as _), Default::default()) }
             }
             #[inline]
             #[allow(dead_code)]
             fn new_from_ref(
-                x: &$ty<ConceptData, RelationData, RelationTypeData>,
-            ) -> $ty_ptr<ConceptData, RelationData, RelationTypeData> {
-                unsafe { Self(NonNull::new_unchecked(x as *const $ty<_, _, _> as _)) }
+                x: &$ty<'a, ConceptData, RelationData, RelationTypeData>,
+            ) -> $ty_ptr<'a, ConceptData, RelationData, RelationTypeData> {
+                unsafe {
+                    Self(
+                        NonNull::new_unchecked(x as *const $ty<_, _, _> as _),
+                        Default::default(),
+                    )
+                }
             }
         }
     };
@@ -171,8 +178,8 @@ declare!(RelationPtr, Relation, RelationData);
 declare!(RelationTypePtr, RelationType, RelationTypeData);
 
 //——————————————————————————————————————————————————————实现—————————————————————————————————————————
-impl<ConceptData, RelationData, RelationTypeData>
-    Container<ConceptData, RelationData, RelationTypeData>
+impl<'a, ConceptData, RelationData, RelationTypeData>
+    Container<'a, ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
     pub fn new() -> Self {
@@ -180,7 +187,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     }
     //——————————————————————————————————————————————————————增删—————————————————————————————————————
     #[inline]
-    pub fn create_concept(&mut self) -> ConceptPtr<ConceptData, RelationData, RelationTypeData>
+    pub fn create_concept(&mut self) -> ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>
     where
         ConceptData: Default,
     {
@@ -189,7 +196,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     pub fn create_concept_with_data(
         &mut self,
         data: ConceptData,
-    ) -> ConceptPtr<ConceptData, RelationData, RelationTypeData> {
+    ) -> ConceptPtr<'a, ConceptData, RelationData, RelationTypeData> {
         let key = self.concepts_key_pool.rent();
 
         ConceptPtr::new_from_ref(self.concepts.entry(key).or_insert(Concept {
@@ -202,7 +209,7 @@ impl<ConceptData, RelationData, RelationTypeData>
 
     pub unsafe fn delete_concept(
         &mut self,
-        concept: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+        concept: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) {
         let c = concept.get_mut();
         let key = c.key;
@@ -228,7 +235,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub fn create_relationtype(
         &mut self,
-    ) -> RelationTypePtr<ConceptData, RelationData, RelationTypeData>
+    ) -> RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData>
     where
         RelationTypeData: Default,
     {
@@ -237,7 +244,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     pub fn create_relationtype_with_data(
         &mut self,
         data: RelationTypeData,
-    ) -> RelationTypePtr<ConceptData, RelationData, RelationTypeData> {
+    ) -> RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData> {
         //申请key
         let key = self.relationtypes_key_pool.rent();
 
@@ -253,7 +260,7 @@ impl<ConceptData, RelationData, RelationTypeData>
 
     pub unsafe fn delete_relationtype(
         &mut self,
-        relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
+        relationtype: RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) {
         let relationtype_ref = relationtype.get_mut();
         let relationtype_key = relationtype_ref.key;
@@ -284,7 +291,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub unsafe fn contains_concept(
         &mut self,
-        concept: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+        concept: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) -> bool {
         self.contains_concept_key(concept.key())
     }
@@ -296,7 +303,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     pub unsafe fn get_concept(
         &mut self,
         key: u64,
-    ) -> Option<ConceptPtr<ConceptData, RelationData, RelationTypeData>> {
+    ) -> Option<ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>> {
         self.concepts.get(&key).map(
             #[inline]
             |x| ConceptPtr::new_from_ref(x),
@@ -306,7 +313,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub unsafe fn contains_relationtype(
         &mut self,
-        relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
+        relationtype: RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) -> bool {
         self.contains_relationtype_key(relationtype.key())
     }
@@ -318,7 +325,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     pub fn get_relationtype(
         &mut self,
         key: u64,
-    ) -> Option<RelationTypePtr<ConceptData, RelationData, RelationTypeData>> {
+    ) -> Option<RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData>> {
         self.relationtypes.get(&key).map(
             #[inline]
             |x| RelationTypePtr::new_from_ref(x),
@@ -327,7 +334,8 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub fn concepts_iter(
         &self,
-    ) -> impl Iterator<Item = ConceptPtr<ConceptData, RelationData, RelationTypeData>> + '_ {
+    ) -> impl Iterator<Item = ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>> + '_
+    {
         self.concepts.values().map(
             #[inline]
             |x| ConceptPtr::new_from_ref(x),
@@ -336,7 +344,8 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub fn relations_iter(
         &self,
-    ) -> impl Iterator<Item = RelationPtr<ConceptData, RelationData, RelationTypeData>> + '_ {
+    ) -> impl Iterator<Item = RelationPtr<'a, ConceptData, RelationData, RelationTypeData>> + '_
+    {
         self.relationtypes
             .values()
             .flat_map(|x| x.relations.values())
@@ -345,7 +354,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub fn relationtypes_iter(
         &self,
-    ) -> impl Iterator<Item = RelationTypePtr<ConceptData, RelationData, RelationTypeData>> + '_
+    ) -> impl Iterator<Item = RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData>> + '_
     {
         self.relationtypes.values().map(
             #[inline]
@@ -354,8 +363,8 @@ impl<ConceptData, RelationData, RelationTypeData>
     }
 }
 
-impl<ConceptData, RelationData, RelationTypeData> Default
-    for Container<ConceptData, RelationData, RelationTypeData>
+impl<'a, ConceptData, RelationData, RelationTypeData> Default
+    for Container<'a, ConceptData, RelationData, RelationTypeData>
 {
     fn default() -> Self {
         Self {
@@ -368,14 +377,14 @@ impl<ConceptData, RelationData, RelationTypeData> Default
 }
 
 //todo 实现原始迭代器的所有功能
-impl<ConceptData, RelationData, RelationTypeData>
-    ConceptPtr<ConceptData, RelationData, RelationTypeData>
+impl<'a, ConceptData: 'a, RelationData: 'a, RelationTypeData: 'a>
+    ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
     pub unsafe fn outgoing(
         self,
-        relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
-    ) -> Option<RelationPtr<ConceptData, RelationData, RelationTypeData>> {
+        relationtype: RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData>,
+    ) -> Option<RelationPtr<'a, ConceptData, RelationData, RelationTypeData>> {
         self.get()
             .relationtype_to_dst_relation
             .get(&relationtype.key())
@@ -384,7 +393,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub unsafe fn outgoings(
         self,
-    ) -> impl Iterator<Item = &'static RelationPtr<ConceptData, RelationData, RelationTypeData>> + 'static
+    ) -> impl Iterator<Item = &'a RelationPtr<'a, ConceptData, RelationData, RelationTypeData>> + 'a
     {
         self.get().relationtype_to_dst_relation.values()
     }
@@ -392,8 +401,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     pub unsafe fn incomings(
         self,
         relationtype: RelationTypePtr<ConceptData, RelationData, RelationTypeData>,
-    ) -> Option<&'static BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>>
-    {
+    ) -> Option<&'a BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>> {
         relationtype.get().dst_to_relations.get(&self.key()).map(
             #[inline]
             |x| &*(x as *const _),
@@ -403,14 +411,14 @@ impl<ConceptData, RelationData, RelationTypeData>
     pub unsafe fn incoming_relationtypes(
         self,
     ) -> impl Iterator<
-        Item = &'static BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>,
-    > + 'static {
+        Item = &'a BTreeMap<u64, RelationPtr<'a, ConceptData, RelationData, RelationTypeData>>,
+    > + 'a {
         self.get().src_to_relationtype_relation.values()
     }
     #[inline]
     pub unsafe fn incomings_all(
         self,
-    ) -> impl Iterator<Item = &'static RelationPtr<ConceptData, RelationData, RelationTypeData>> + 'static
+    ) -> impl Iterator<Item = &'a RelationPtr<'a, ConceptData, RelationData, RelationTypeData>> + 'a
     {
         self.incoming_relationtypes().map(|x| x.values()).flatten()
     }
@@ -418,28 +426,27 @@ impl<ConceptData, RelationData, RelationTypeData>
     pub unsafe fn relations_relationtype(
         self,
         dst: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
-    ) -> Option<&'static BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>>
-    {
+    ) -> Option<&'a BTreeMap<u64, RelationPtr<ConceptData, RelationData, RelationTypeData>>> {
         dst.get().src_to_relationtype_relation.get(&self.key())
     }
     #[inline]
     pub unsafe fn relations(
         self,
-        dst: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
-    ) -> Option<impl Iterator<Item = RelationPtr<ConceptData, RelationData, RelationTypeData>>>
+        dst: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
+    ) -> Option<impl Iterator<Item = RelationPtr<'a, ConceptData, RelationData, RelationTypeData>>>
     {
         self.relations_relationtype(dst)
             .map(|x| x.values().cloned())
     }
 }
 
-impl<ConceptData, RelationData, RelationTypeData>
-    RelationTypePtr<ConceptData, RelationData, RelationTypeData>
+impl<'a, ConceptData, RelationData, RelationTypeData>
+    RelationTypePtr<'a, ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
     pub unsafe fn relations(
         self,
-    ) -> impl Iterator<Item = &'static RelationPtr<ConceptData, RelationData, RelationTypeData>> + 'static
+    ) -> impl Iterator<Item = &'a RelationPtr<'a, ConceptData, RelationData, RelationTypeData>> + 'a
     {
         self.get().dst_to_relations.values().flat_map(
             #[inline]
@@ -461,7 +468,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     pub unsafe fn get_relation(
         self,
         key: u64,
-    ) -> Option<RelationPtr<ConceptData, RelationData, RelationTypeData>> {
+    ) -> Option<RelationPtr<'a, ConceptData, RelationData, RelationTypeData>> {
         self.get().relations.get(&key).map(
             #[inline]
             |x| RelationPtr::new_from_ref(x),
@@ -470,21 +477,21 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub unsafe fn relations_iter(
         self,
-    ) -> impl Iterator<Item = RelationPtr<ConceptData, RelationData, RelationTypeData>> + 'static
+    ) -> impl Iterator<Item = RelationPtr<'a, ConceptData, RelationData, RelationTypeData>> + 'a
     {
         self.get().relations.values().map(
             #[inline]
             |x| RelationPtr::new_from_ref(x),
         )
     }
-    pub unsafe fn create_relation_with_data<'a>(
+    pub unsafe fn create_relation_with_data(
         self,
-        src: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+        src: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
         data: RelationData,
     ) -> Result<
-        RelationPtr<ConceptData, RelationData, RelationTypeData>,
+        RelationPtr<'a, ConceptData, RelationData, RelationTypeData>,
         (
-            RelationPtr<ConceptData, RelationData, RelationTypeData>,
+            RelationPtr<'a, ConceptData, RelationData, RelationTypeData>,
             RelationData,
         ),
     >
@@ -520,9 +527,7 @@ impl<ConceptData, RelationData, RelationTypeData>
                 );
 
                 //注册关系
-                src.get_mut()
-                    .relationtype_to_dst_relation
-                    .insert(relationtype_key, relation_ref);
+                entry.insert(relation_ref);
 
                 //封装并返回
                 return Ok(relation_ref);
@@ -535,12 +540,12 @@ impl<ConceptData, RelationData, RelationTypeData>
         }
     }
     #[inline]
-    pub unsafe fn create_relation<'a>(
+    pub unsafe fn create_relation(
         self,
-        src: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+        src: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) -> Result<
-        RelationPtr<ConceptData, RelationData, RelationTypeData>,
-        RelationPtr<ConceptData, RelationData, RelationTypeData>,
+        RelationPtr<'a, ConceptData, RelationData, RelationTypeData>,
+        RelationPtr<'a, ConceptData, RelationData, RelationTypeData>,
     >
     where
         RelationData: Default + 'a,
@@ -551,8 +556,8 @@ impl<ConceptData, RelationData, RelationTypeData>
             .map_err(|(x, _)| x)
     }
 }
-impl<ConceptData, RelationData, RelationTypeData>
-    Relation<ConceptData, RelationData, RelationTypeData>
+impl<'a, ConceptData, RelationData, RelationTypeData>
+    Relation<'a, ConceptData, RelationData, RelationTypeData>
 {
     unsafe fn delete(&mut self) {
         let relation = self;
@@ -583,8 +588,8 @@ impl<ConceptData, RelationData, RelationTypeData>
     }
 }
 
-impl<ConceptData, RelationData, RelationTypeData>
-    RelationPtr<ConceptData, RelationData, RelationTypeData>
+impl<'a, ConceptData, RelationData, RelationTypeData>
+    RelationPtr<'a, ConceptData, RelationData, RelationTypeData>
 {
     #[inline]
     pub unsafe fn delete(self) {
@@ -592,7 +597,7 @@ impl<ConceptData, RelationData, RelationTypeData>
     }
     pub unsafe fn add_concept(
         self,
-        dst: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+        dst: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) -> bool {
         let rel = self.get_mut();
         let dst_key = dst.key();
@@ -614,14 +619,14 @@ impl<ConceptData, RelationData, RelationTypeData>
                 entry.insert(dst);
                 return true;
             }
-            Entry::Occupied(entry) => {
+            Entry::Occupied(_entry) => {
                 return false;
             }
         }
     }
     pub unsafe fn remove_concept(
         self,
-        dst: ConceptPtr<ConceptData, RelationData, RelationTypeData>,
+        dst: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) -> bool {
         let rel = self.get_mut();
         let dst_key = dst.key();
@@ -649,11 +654,11 @@ impl<ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub unsafe fn destinations(
         self,
-    ) -> &'static BTreeMap<u64, ConceptPtr<ConceptData, RelationData, RelationTypeData>> {
+    ) -> &'static BTreeMap<u64, ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>> {
         &self.get().key_to_dst
     }
     #[inline]
-    pub unsafe fn source(self) -> ConceptPtr<ConceptData, RelationData, RelationTypeData> {
+    pub unsafe fn source(self) -> ConceptPtr<'a, ConceptData, RelationData, RelationTypeData> {
         self.get().src
     }
 }
