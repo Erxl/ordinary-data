@@ -35,6 +35,10 @@ impl KeyPool {
     }
     #[inline]
     pub fn ret(&mut self, _key: u64) {}
+    #[inline]
+    pub fn clear(&mut self) {
+        self.0 = 0;
+    }
 }
 
 pub struct Container<'a, ConceptData: 'a = (), RelationData: 'a = (), RelationTypeData: 'a = ()> {
@@ -361,6 +365,13 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
             |x| RelationTypePtr::new_from_ref(x),
         )
     }
+
+    pub fn clear(&mut self) {
+        self.concepts.clear();
+        self.concepts_key_pool.clear();
+        self.relationtypes.clear();
+        self.relationtypes_key_pool.clear();
+    }
 }
 
 impl<'a, ConceptData, RelationData, RelationTypeData> Default
@@ -494,12 +505,7 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
             RelationPtr<'a, ConceptData, RelationData, RelationTypeData>,
             RelationData,
         ),
-    >
-    where
-        RelationData: 'a,
-        ConceptData: 'a,
-        RelationTypeData: 'a,
-    {
+    > {
         let relationtype_ptr = self.get_mut();
 
         //申请key
@@ -662,3 +668,5 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
         self.get().src
     }
 }
+
+//todo 增加更多快捷函数，以快速组织网络
