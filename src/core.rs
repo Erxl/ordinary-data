@@ -645,29 +645,36 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
             }
         }
     }
+    #[inline]
     pub unsafe fn remove_concept(
         self,
         dst: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) -> bool {
-        let rel = self.get_mut();
-        let dst_key = dst.key();
+        self.remove_concept_key(dst.key())
+    }
+    pub fn remove_concept_key(self, dst_key: u64) -> bool {
+        let rel = unsafe { self.get_mut() };
         match rel.key_to_dst.remove(&dst_key) {
             //查无此人，无法移除
             None => {
                 return false;
             }
-            Some(_) => {
-                let dst_to_relations = &mut rel.relationtype.get_mut().dst_to_relations;
-                let relations = dst_to_relations.get_mut(&dst_key).unwrap_unchecked();
+            Some(dst) => {
+                let dst_key = unsafe { dst.key() };
+
+                let dst_to_relations = unsafe { &mut rel.relationtype.get_mut().dst_to_relations };
+                let relations = unsafe { dst_to_relations.get_mut(&dst_key).unwrap_unchecked() };
                 if relations.len() == 1 {
                     //如果只剩一个，就带着树整个删了，节省一次删除
                     dst_to_relations.remove(&dst_key);
                 } else {
                     relations.remove(&rel.key);
                 }
-                dst.get_mut()
-                    .src_to_relationtype_relation
-                    .remove(&rel.src.key());
+                unsafe {
+                    dst.get_mut()
+                        .src_to_relationtype_relation
+                        .remove(&rel.src.key());
+                }
                 return true;
             }
         }
