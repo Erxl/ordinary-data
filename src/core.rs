@@ -576,6 +576,26 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
         self.create_relation_with_data(src, Default::default())
             .map_err(|(x, _)| x)
     }
+
+    // 不支持含有漏洞的api
+    // 不支持重复的api
+    // #[inline]
+    // pub unsafe fn delete_relation_key(self, relation_key: u64) -> bool {
+    //     match self.get_relation(relation_key) {
+    //         Some(relation) => {
+    //             relation.delete();
+    //             true
+    //         }
+    //         None => false,
+    //     }s
+    // }
+    // #[inline]
+    // pub unsafe fn delete_relation(
+    //     self,
+    //     relation: RelationPtr<'a, ConceptData, RelationData, RelationTypeData>,
+    // ) -> bool {
+    //     relation.delete()
+    // }
 }
 impl<'a, ConceptData, RelationData, RelationTypeData>
     Relation<'a, ConceptData, RelationData, RelationTypeData>
