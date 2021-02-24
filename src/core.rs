@@ -44,9 +44,10 @@ impl KeyPool {
 pub struct Container<'a, ConceptData: 'a = (), RelationData: 'a = (), RelationTypeData: 'a = ()> {
     concepts_key_pool: KeyPool,
     relationtypes_key_pool: KeyPool,
-    concepts: BTreeMap<u64, Concept<'a, ConceptData, RelationData, RelationTypeData>>,
+    concepts: BTreeMap<u64, Box<Concept<'a, ConceptData, RelationData, RelationTypeData>>>,
     //todo 使用ordclct树，避免多次引用造成的性能损失
-    relationtypes: BTreeMap<u64, RelationType<'a, ConceptData, RelationData, RelationTypeData>>,
+    relationtypes:
+        BTreeMap<u64, Box<RelationType<'a, ConceptData, RelationData, RelationTypeData>>>,
 }
 
 pub struct Concept<'a, ConceptData, RelationData, RelationTypeData> {
@@ -61,7 +62,7 @@ pub struct Concept<'a, ConceptData, RelationData, RelationTypeData> {
 pub struct RelationType<'a, ConceptData, RelationData, RelationTypeData> {
     key: u64,
     data: RelationTypeData,
-    relations: BTreeMap<u64, Relation<'a, ConceptData, RelationData, RelationTypeData>>,
+    relations: BTreeMap<u64, Box<Relation<'a, ConceptData, RelationData, RelationTypeData>>>,
     dst_to_relations:
         BTreeMap<u64, BTreeMap<u64, RelationPtr<'a, ConceptData, RelationData, RelationTypeData>>>,
     relations_key_pool: KeyPool,
@@ -203,37 +204,47 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
     ) -> ConceptPtr<'a, ConceptData, RelationData, RelationTypeData> {
         let key = self.concepts_key_pool.rent();
 
-        ConceptPtr::new_from_ref(self.concepts.entry(key).or_insert(Concept {
+        ConceptPtr::new_from_ref(&**self.concepts.entry(key).or_insert(Box::new(Concept {
             key,
             data,
             relationtype_to_dst_relation: Default::default(),
             src_to_relationtype_relation: Default::default(),
-        }))
+        })))
     }
 
+    #[inline]
     pub unsafe fn delete_concept(
         &mut self,
         concept: ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>,
     ) {
-        let c = concept.get_mut();
-        let key = c.key;
+        self.delete_concept_key(concept.key());
+    }
 
-        //todo 可优化;
-        c.relationtype_to_dst_relation //移除接出的关系
-            .values()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .for_each(|x| x.delete());
-        c.src_to_relationtype_relation
-            .values()
-            .map(|x| x.values())
-            .flatten()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .for_each(|x| x.delete());
+    pub fn delete_concept_key(&mut self, key: u64) -> bool {
+        match self.concepts.remove(&key) {
+            Some(c) => {
+                self.concepts_key_pool.ret(key);
+                unsafe {
+                    //todo 可优化;
+                    c.relationtype_to_dst_relation //移除接出的关系
+                        .values()
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .for_each(|x| x.delete());
+                    c.src_to_relationtype_relation
+                        .values()
+                        .map(|x| x.values())
+                        .flatten()
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .for_each(|x| x.delete());
+                }
+                true
+            }
+            None => false,
+        };
 
-        self.concepts.remove(&key).unwrap();
-        self.concepts_key_pool.ret(key);
+        true
     }
 
     #[inline]
@@ -253,13 +264,15 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
         let key = self.relationtypes_key_pool.rent();
 
         //创建
-        RelationTypePtr::new_from_ref(self.relationtypes.entry(key).or_insert(RelationType {
-            key,
-            data,
-            dst_to_relations: Default::default(),
-            relations: Default::default(),
-            relations_key_pool: Default::default(),
-        }))
+        RelationTypePtr::new_from_ref(&**self.relationtypes.entry(key).or_insert(Box::new(
+            RelationType {
+                key,
+                data,
+                dst_to_relations: Default::default(),
+                relations: Default::default(),
+                relations_key_pool: Default::default(),
+            },
+        )))
     }
 
     pub unsafe fn delete_relationtype(
@@ -353,6 +366,7 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
         self.relationtypes
             .values()
             .flat_map(|x| x.relations.values())
+            .map(std::ops::Deref::deref)
             .map(RelationPtr::new_from_ref)
     }
     #[inline]
@@ -522,15 +536,16 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
         {
             Entry::Vacant(entry) => {
                 //创建关系
-                let relation_ref = RelationPtr::new_from_ref(
-                    relationtype_ptr.relations.entry(key).or_insert(Relation {
-                        key,
-                        data,
-                        relationtype: self,
-                        src: ConceptPtr::new_from_ref(src.get()),
-                        key_to_dst: Default::default(),
-                    }),
-                );
+                let relation_ref =
+                    RelationPtr::new_from_ref(&**relationtype_ptr.relations.entry(key).or_insert(
+                        Box::new(Relation {
+                            key,
+                            data,
+                            relationtype: self,
+                            src: ConceptPtr::new_from_ref(src.get()),
+                            key_to_dst: Default::default(),
+                        }),
+                    ));
 
                 //注册关系
                 entry.insert(relation_ref);
@@ -670,3 +685,5 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
 }
 
 //todo 增加更多快捷函数，以快速组织网络
+//todo trait化，为领域特定的系统提供优化空间，提供操作容器的包装等，以用于切片编程
+//todo 检查btree中对象是否会移动，若移动则使用box封装

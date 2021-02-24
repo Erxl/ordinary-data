@@ -283,6 +283,28 @@ fn test_accessing() {
     };
     names.iter().for_each(|x| assert!(x.strong_count() == 0));
 }
+
+#[test]
+fn test_moves() {
+    //失败则证明对象在BTree的Node上面是移动的，故应将对象以Box形式存储在Node上，此错误为我这个小废物对rust标准库的不熟悉导致
+    //使用Box存储后果然不报错了
+    unsafe {
+        let mut c = Container::<i32, (), ()>::new();
+        let fr = c.create_concept();
+        let mut tos = (0..100)
+            .map(|i| (i, c.create_concept_with_data(i)))
+            .collect::<Vec<_>>();
+        (50..70).for_each(|i| {
+            c.delete_concept(tos.remove(i).1);
+            //c.delete_concept_key(i);
+        });
+        let kd = c.create_relationtype();
+        let _rl = kd.create_relation(fr).unwrap();
+        tos.iter().for_each(|(i, x)| {
+            assert!(x.data() == i);
+        })
+    }
+}
 // #[test]
 // fn test_info() {
 //     unsafe {
