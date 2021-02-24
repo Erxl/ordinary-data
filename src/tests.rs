@@ -305,6 +305,24 @@ fn test_moves() {
         })
     }
 }
+
+#[test]
+fn test_life() {
+    let bbb = 11;
+    {
+        let aaa = 1;
+        {
+            let mut c = Container::<&i32, (), ()>::new();
+            {
+                //ccc太短命，不能不被编译器抱怨
+                //let ccc = 1;
+                //let _fr2 = c.create_concept_with_data(&ccc);
+            }
+            let _fr = c.create_concept_with_data(&bbb);
+            let _fr2 = c.create_concept_with_data(&aaa);
+        }
+    }
+}
 // #[test]
 // fn test_info() {
 //     unsafe {
