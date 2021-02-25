@@ -83,7 +83,7 @@ macro_rules! declare {
             NonNull<$ty<'a, ConceptData, RelationData, RelationTypeData>>,
             PhantomData<&'a ()>,
         );
-        impl<'a, ConceptData: 'a, RelationData: 'a, RelationTypeData: 'a> Clone
+        impl<'a, ConceptData, RelationData, RelationTypeData> Clone
             for $ty_ptr<'a, ConceptData, RelationData, RelationTypeData>
         {
             #[inline]
@@ -702,7 +702,7 @@ impl<'a, ConceptData, RelationData, RelationTypeData>
     #[inline]
     pub unsafe fn destinations(
         self,
-    ) -> &'static BTreeMap<u64, ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>> {
+    ) -> &'a BTreeMap<u64, ConceptPtr<'a, ConceptData, RelationData, RelationTypeData>> {
         &self.get().key_to_dst
     }
     #[inline]
