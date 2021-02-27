@@ -420,6 +420,38 @@ fn test_life() {
 
 #[test]
 fn test_test() {
+    //use std::collections::*;
     //BTreeMap::entry(&mut self, key).or_default()
+    //BTreeMap::
     println!("{}", 33);
+}
+
+#[test]
+fn test_agents() {}
+
+#[test]
+fn test_basicdemo() {
+    let mut container = Container::<&str, (), &str>::new();
+
+    //创建“朋友名单”
+    let friendslist = container.create_concept_with_data("朋友名单");
+
+    //创建“内容”属性
+    let contents = container.create_relationtype_with_data("内容");
+
+    //为“朋友名单”添加“内容”属性
+    let friendslist_contents = unsafe { contents.create_relation(friendslist).unwrap() };
+
+    //这些人是我的朋友（虚构）
+    let jizishan = container.create_concept_with_data("季子杉");
+    let wangyuxuan = container.create_concept_with_data("王宇轩");
+
+    //把我的朋友们记录到“朋友名单”的“内容”属性上
+    unsafe {
+        friendslist_contents.add_concept(jizishan);
+        friendslist_contents.add_concept(wangyuxuan);
+
+        //"王宇轩"不幸去世了，把他从名单移除
+        friendslist_contents.remove_concept(wangyuxuan);
+    }
 }
